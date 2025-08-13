@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
-
+from datetime import time
 
 # File path for testing, later we will use the folder
 
@@ -233,6 +233,47 @@ df.drop(columns=cols_to_drop_1, inplace=True)
 
 
 
+
+
+
+value_to_drop = "VicPro Security Pty Ltd,39/42 McArthurs Road,Altona North VIC 3025"
+
+# Drop rows where this value appears in any column
+df = df[~df.apply(lambda row: row.astype(str).str.contains(value_to_drop, case=False, na=False)).any(axis=1)]
+
+
+# Convert the 'Earnings and Hours' column to string for safe matching
+eah_col = df["Earnings and Hours"].astype(str)
+
+# Find all indices where 'Net Pay' appears
+net_pay_indices = eah_col[eah_col.str.contains("Net Pay", case=False, na=False)].index.tolist()
+
+# Find all indices where 'Earnings and Hours' appears
+eah_indices = eah_col[eah_col.str.contains("Earnings and Hours", case=False, na=False)].index.tolist()
+
+# Sort indices to ensure proper ordering
+net_pay_indices.sort()
+eah_indices.sort()
+
+# Collect all valid indices to drop
+indices_to_drop = []
+
+for net_idx in net_pay_indices:
+    # Find the next 'Earnings and Hours' index after this 'Net Pay'
+    next_eah = [i for i in eah_indices if i > net_idx]
+    if next_eah:
+        next_eah_idx = next_eah[0]
+        # Add all indices between net_idx and next_eah_idx (exclusive)
+        drop_range = range(net_idx + 1, next_eah_idx)
+        # Only keep indices that exist in df.index
+        valid_range = [i for i in drop_range if i in df.index]
+        indices_to_drop.extend(valid_range)
+
+# Drop the identified rows safely
+df.drop(index=indices_to_drop, inplace=True)
+
+
+
 # Define regex patterns
 patterns = {
     "Earnings and Hours": r"^\s*earnings\s+and\s+hours\s*$",
@@ -248,23 +289,92 @@ def row_matches_all_patterns(row):
         for col in patterns
     )
 
-# Apply condition and clear Pay Date
-df.loc[df.apply(row_matches_all_patterns, axis=1), "Pay Date"] = pd.NaT
+# Apply condition and drop rows
+df = df[~df.apply(row_matches_all_patterns, axis=1)]
 
 
-value_to_drop = "VicPro Security Pty Ltd,39/42 McArthurs Road,Altona North VIC 3025"
+df["EmployeeNumber"] = df["EmployeeNumber"].ffill()
+
+value_to_drop = "Employee Pay Slip"
+
+# Drop rows where this value appears in any column
+df = df[~df.apply(lambda row: row.astype(str).str.contains(value_to_drop, case=False, na=False)).any(axis=1)]
+
+
+value_to_drop = "Taxes"
 
 # Drop rows where this value appears in any column
 df = df[~df.apply(lambda row: row.astype(str).str.contains(value_to_drop, case=False, na=False)).any(axis=1)]
 
 
 
+# Drop rows with nulls in specified columns
+df = df.dropna(subset=['Earnings and Hours', 'Qty', 'Rate', 'Current'], how='all')
+
+df = df.dropna(subset=['Qty','Rate', 'Current',	'EmployeeNumber','Pay Date'], how='all')
+
+
+# Replace nulls with 'Gross Pay' where 'Current' > 0
+df['Earnings and Hours'] = np.where(
+    df['Earnings and Hours'].isnull() & (df['Current'] > 0),
+    'Gross Pay',
+    df['Earnings and Hours']
+)
+
+
+# Drop rows with nulls in specified columns
+df = df.dropna(subset=['Qty', 'Rate', 'Current'], how='all')
+
+
+
+# Pivot the data
+pivot_df = df.pivot_table(index=df.index, columns='Earnings and Hours', values='Current', aggfunc='sum')
+
+# Combine with original DataFrame
+df_combined = pd.concat([df, pivot_df], axis=1)
+
+print(df_combined)
+
+
+# Convert 'Pay Date' to date-only
+df_combined['Pay Date'] = pd.to_datetime(df_combined['Pay Date']).dt.date
+
+# Create 'EmpID_key'
+df_combined['EmpID_key'] = df_combined['EmployeeNumber'] + '_' + df_combined['Pay Date'].astype(str)
+
+
+
+df_combined = df_combined.drop(columns=['Qty', 'Rate', 'Current'])
+
+
+
+
+
+grouped_df = df_combined.groupby('EmpID_key').agg({
+    'EmployeeNumber': 'first',
+    'Pay Date': 'first',
+    'Extra Payment': 'sum',
+    'First Aid Allowance': 'sum',
+    'Gross Pay': 'sum',
+    'Hourly Day': 'sum',
+    'Hourly Night': 'sum',
+    'Hourly Saturday': 'sum',
+    'Hourly Sunday': 'sum',
+    'Net Pay': 'sum',
+    'PAYG Tax': 'sum',
+    'Public Holiday Hourly': 'sum',
+    'Sick Leave Hourly': 'sum',
+    'Super': 'sum'
+}).reset_index()
+
+
+
 
 # ------------- OUTPUT -------------
 # Save to Excel (change OUTPUT_PATH if you want CSV)
-df.to_excel(OUTPUT_PATH, index=False)
 
 
+grouped_df.to_excel(OUTPUT_PATH, index=False)
 
 
 
