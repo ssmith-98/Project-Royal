@@ -145,8 +145,40 @@ timesheet_df = timesheet_df.merge(
     how='left'
 )
 
+# 1 week roster so Weekly Ordinary Hours is 38 hours
+
+timesheet_df['Weekly OT Flag'] = np.where(
+    timesheet_df['weekly cumulative total hours'] > 38,
+    'Y',
+    'N'
+)
+
+# Condition: OT flag is Y and cumulative hours *before* this shift exceed 38
+condition1 = (timesheet_df['Weekly OT Flag'] == 'Y') & \
+             ((timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours']) > 38)
+
+# Condition: OT flag is Y (used in second np.where)
+condition2 = timesheet_df['Weekly OT Flag'] == 'Y'
+
+timesheet_df['Weekly OT Hours'] = np.where(
+    condition1,
+    # All shift hours are OT if we've already exceeded 38 before this shift
+    timesheet_df['Total Shift Hours'],
+    np.where(
+        condition2,
+        # Part of this shift may push us over 38, so subtract the remaining non-OT hours
+        timesheet_df['Total Shift Hours'] - (
+            38 - (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'])
+        ),
+        0
+    )
+)
+
+# Ensure OT hours don't go negative
+timesheet_df['Weekly OT Hours'] = timesheet_df['Weekly OT Hours'].clip(lower=0)
 
 
+timesheet_df['OT First 2 Hours'] = 
 
 
 
