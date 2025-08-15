@@ -178,7 +178,39 @@ timesheet_df['Weekly OT Hours'] = np.where(
 timesheet_df['Weekly OT Hours'] = timesheet_df['Weekly OT Hours'].clip(lower=0)
 
 
-timesheet_df['OT First 2 Hours'] = 
+
+
+# First two hours will be on the weekly OT hours basis until told otherwise by CU or VU - 14.08.25
+# Condition: weekly cumulative hours > 38 but <= 40
+mask_first_2_ot = (
+    (timesheet_df['weekly cumulative total hours'] > 38) &
+    (timesheet_df['weekly cumulative total hours'] <= 40)
+)
+
+# Amount of shift hours that fall in the 38–40 window
+first_2_hours_calc = np.minimum(
+    timesheet_df['Total Shift Hours'],
+    40 - (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'])
+)
+
+# timesheet_df['OT First 2 Hours'] = np.where(
+#     timesheet_df['Weekly OT Flag'] == 'Y' & (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'] < 38) 
+#     & timesheet_df['Weekly OT Hours'] >0 ,
+#     timesheet_df['Weekly OT Hours'] - 2
+
+
+timesheet_df['OT First 2 Hours'] = np.where(
+    (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 0) & (timesheet_df['Weekly OT Hours'] < 2),
+    timesheet_df['Weekly OT Hours'],
+    np.where(
+        (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 2),
+        2,
+        0
+    )
+)
+
+
+
 
 
 

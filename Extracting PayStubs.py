@@ -3,6 +3,8 @@ import numpy as np
 import re
 from datetime import time
 
+import os
+
 # File path for testing, later we will use the folder
 
 # paystub_test_filepath = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Files Provided by DB 20 July 25\PayStubs Excel\ANUJ BHALLA 1.xlsx"
@@ -41,12 +43,53 @@ PQ steps covered:
 Author: (you + ChatGPT)
 """
 
-import re
-import numpy as np
-import pandas as pd
+
+
+
+
+
+def process_payroll_data(directory, sheet_name="Sheet1"):
+    """
+    Reads and processes payroll data from multiple Excel files in the given directory.
+
+    Args:
+        directory (str): Path to the directory containing payroll Excel files.
+        sheet_name (str): Name of the sheet to read from each Excel file.
+
+    Returns:
+        pd.DataFrame: Combined payroll data from all files.
+    """
+    all_years_pay = pd.DataFrame()
+
+    # List all Excel files in the directory
+    files = [file for file in os.listdir(directory) if file.endswith('.xlsx')]
+
+    for file in files:
+        file_path = os.path.join(directory, file)
+        try:
+            temp_df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl')
+            temp_df['Source File'] = file  # Optional: track source file
+            all_years_pay = pd.concat([all_years_pay, temp_df], ignore_index=True)
+        except Exception as e:
+            print(f"Error reading {file}: {e}")
+
+    return all_years_pay
+
+
+
+
+
+
+
+
 
 # ------------- CONFIG -------------
-INPUT_PATH  = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Files Provided by DB 20 July 25\PayStubs Excel\ANUJ BHALLA 1.xlsx"
+INPUT_PATH  = r"C:/Users/smits/OneDrive - SW Accountants & Advisors Pty Ltd\Desktop/Client Projects/Project Royal/Files Provided by DB 20 July 25/PayStubs Excel/all staff - Excel (Word to Excel)/"
+
+
+
+
+#r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Files Provided by DB 20 July 25\PayStubs Excel\ANUJ BHALLA 1.xlsx"
 
 
 
@@ -59,6 +102,7 @@ OUTPUT_PATH_1 = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\De
 
 
 # ----------------------------------
+
 
 
 
@@ -96,7 +140,15 @@ def _extract_date_after_key(text, key):
 
 # ------------- STEP 1: Load -------------
 # Headers are promoted by default with read_excel.
-df = pd.read_excel(INPUT_PATH, sheet_name=SHEET_NAME, header=None)
+df = process_payroll_data(INPUT_PATH)
+
+print("columns")
+print(df.columns)
+
+
+df.to_excel('test123.xlsx')
+
+#pd.read_excel(INPUT_PATH, sheet_name=SHEET_NAME, header=None)
 
 df.columns = [
     "Earnings and Hours", "Column2", "Column3", "Column4", "Column5",
