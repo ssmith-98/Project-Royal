@@ -150,12 +150,20 @@ df.to_excel('test123.xlsx')
 
 #pd.read_excel(INPUT_PATH, sheet_name=SHEET_NAME, header=None)
 
+
+
+df = df.iloc[:, :10]  # Keep only the first 10 columns
 df.columns = [
-    "Earnings and Hours", "Column2", "Column3", "Column4", "Column5",
-    "Column6", "Column7", "Column8", "Column9"
+    'Earnings and Hours', 'Column2', 'Column3', 'Column4', 'Column5',
+    'Column6', 'Column7', 'Column8', 'Column9', 'Source File'
 ]
 
+# df.columns = [
+#     "Earnings and Hours", "Column2", "Column3", "Column4", "Column5",
+#     "Column6", "Column7", "Column8", "Column9", "Unwanted 10", "Unwanted 11"
+# ]
 
+# df = df.drop['Unwanted 10', 'Unwanted 11']
 
 # ------------- STEP 2: Remove blank rows (PQ-style) -------------
 # Treat empty strings as NaN across the board
@@ -366,18 +374,92 @@ df = df.dropna(subset=['Earnings and Hours', 'Qty', 'Rate', 'Current'], how='all
 df = df.dropna(subset=['Qty','Rate', 'Current',	'EmployeeNumber','Pay Date'], how='all')
 
 
+
+
+current_problemo_list = [
+"Accrued",
+"Current",
+"MLC Super (MLC Super 29791669)",
+"Australian Super (AUSSUPER 1073015888)",
+"Australian Super (Australian Super 314332...",
+"Essential Super (ESSENTIAL 0679790032…",
+"Australian Super (Australian Super 358640…",
+"Essential Super (ESSENTIAL 0679790032...",
+"Australian Super (Australian Super 358640..."
+
+
+
+]
+
+
+
+# Need to remove Current from after these 
+
+# -174.00 Current
+# -97.00 Current"
+
+
+# Cleaning function
+def clean_current(value):
+    if value in current_problemo_list:
+        return 0
+    elif isinstance(value, str) and value.endswith(" Current"):
+        try:
+            return float(value.replace(" Current", ""))
+        except ValueError:
+            return value
+    else:
+        return value
+
+# Apply cleaning
+df['Current'] = df['Current'].apply(clean_current)
+
+
+
+
+df['Current'] = (
+    pd.to_numeric(df['Current'], errors='coerce')  # Convert to numbers, NaN if invalid
+    .astype(float)                                 # Ensure a float type
+)
+
+
+# df['Current'] = (
+#     df['Current']
+#     .astype(str)                                   # Convert everything to string
+#     .str.replace(r'[^\d.-]', '', regex=True)       # Remove non-numeric chars except - and .
+#     .replace('', pd.NA)                            # Empty strings become NA
+#     .astype(float)
+#     .astype('Int64')
+# )
+
+
+
+
 # Replace nulls with 'Gross Pay' where 'Current' > 0
+
+
+
+import numpy as np
+import pandas as pd
+
+# Ensure 'Current' is numeric for comparison
+df['Current_num'] = pd.to_numeric(df['Current'], errors='coerce')
+
+# Apply the overwrite logic
 df['Earnings and Hours'] = np.where(
-    df['Earnings and Hours'].isnull() & (df['Current'] > 0),
+    df['Earnings and Hours'].isnull() & (df['Current_num'] > 0),
     'Gross Pay',
     df['Earnings and Hours']
 )
 
+# Optional: drop the helper column if you don't need it
+df.drop(columns=['Current_num'], inplace=True)
+ 
 
 # Drop rows with nulls in specified columns
 df = df.dropna(subset=['Qty', 'Rate', 'Current'], how='all')
 
-
+df.to_csv('Test_line462.csv')
 
 # Pivot the data
 pivot_df = df.pivot_table(index=df.index, columns='Earnings and Hours', values='Current', aggfunc='sum')

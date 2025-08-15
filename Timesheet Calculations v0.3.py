@@ -198,19 +198,65 @@ first_2_hours_calc = np.minimum(
 #     & timesheet_df['Weekly OT Hours'] >0 ,
 #     timesheet_df['Weekly OT Hours'] - 2
 
+# Where Weekly OT Hours is greater than 
+# timesheet_df['OT First 2 Hours'] = np.where(
+#     (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 0) & (timesheet_df['Weekly OT Hours'] < 2)
+#     & ((timesheet_df['weekly cumulative total hours'] - 38) - timesheet_df['Weekly OT Hours']) <= 0,
+#     2,
+#     np.where(
+#         (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 2),
+#         0,
+#         0
+#     )
+# )
 
+
+# # Calculate hours over 38 but before 40
+# first_ot_hours = np.clip(
+#     timesheet_df['weekly cumulative total hours'] - 38,  # hours past 38
+#     0,                                                   # lower bound
+#     2                                                    # upper bound
+# )
+
+# # But don't allow more than the shift's OT hours
+# first_ot_hours = np.minimum(first_ot_hours, timesheet_df['Weekly OT Hours'])
+
+# # Apply only to rows flagged for OT
+# timesheet_df['OT First 2 Hours'] = np.where(
+#     timesheet_df['Weekly OT Flag'] == 'Y',
+#     first_ot_hours,
+#     0
+# )
+
+
+# Step 1 – calculate candidate first 2 hours
 timesheet_df['OT First 2 Hours'] = np.where(
-    (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 0) & (timesheet_df['Weekly OT Hours'] < 2),
-    timesheet_df['Weekly OT Hours'],
-    np.where(
-        (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 2),
-        2,
-        0
-    )
+    (timesheet_df['Weekly OT Flag'] == 'Y'),
+    np.clip(timesheet_df['Weekly OT Hours'], 0, 2),
+    0
 )
 
+# Step 2 – create pre-shift cumulative hours
+timesheet_df['pre_shift_cumulative'] = (
+    timesheet_df['weekly cumulative total hours'] - timesheet_df['Weekly OT Hours']
+)
 
+# Step 3 – zero out if cumulative already ≥ 40 before the shift
+timesheet_df.loc[timesheet_df['pre_shift_cumulative'] >= 40, 'OT First 2 Hours'] = 0
 
+# Step 4 – ensure only first occurrence in week gets the "first 2 hours"
+# Assuming you have a 'Week' column or can group by year-week
+timesheet_df['OT First 2 Hours'] = (
+    timesheet_df
+    .groupby(['Team member', 'Week Ending'])['OT First 2 Hours']
+    .transform(lambda x: x.where(x.cumsum() <= 2, 0))
+)
+
+timesheet_df['OT Post 2 Hours'] = (
+    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
+)
+
+timesheet_df['OT200']
 
 
 
