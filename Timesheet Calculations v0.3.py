@@ -54,9 +54,39 @@ def calculate_shift_hours(start_time, end_time, shift_start, shift_end):
 
 # File path
 timesheet_file_path = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet detail 1 Nov 2023 to 30 June 2025.xlsx"
+emplids_mapping = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Employee IDs.xlsx", sheet_name='EMPLIDS')
+
+payroll_data = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Collated_Output.xlsx"
+
+
 
 # Load data
 timesheet_df = load_and_clean_timesheet(timesheet_file_path)
+
+print(timesheet_df.columns)
+
+print(emplids_mapping.columns)
+
+emplids_mapping['Team member'] = emplids_mapping['Team member'].astype(str)
+
+
+timesheet_df = timesheet_df.merge(
+    emplids_mapping[['Team member', 'Employee ID Consolidated']],
+    on='Team member',
+    how='left'
+)
+
+
+
+
+# Drop rows where Team member is 'Anthony Knight'
+timesheet_df = timesheet_df[timesheet_df['Team member'] != 'Anthony Knight']
+
+# (Optional) Reset the index if you want a clean index after dropping
+timesheet_df = timesheet_df.reset_index(drop=True)
+
+
+
 
 # Calculate total hours
 timesheet_df['Difference in Hours'] = calculate_time_difference_in_hours(
@@ -91,6 +121,26 @@ timesheet_df['DOTW'] = timesheet_df['Timesheet Start Time'].dt.weekday.map(day_m
 # Add Day of the Week as text (e.g. Monday, Tuesday, etc.)
 timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_name()
 
+
+# Can make these account for Weekend OT and PH once the PH list is complete
+
+timesheet_df['Saturday_Penality_flag'] = np.where(
+    timesheet_df['DOTW'] == 6,
+    'Y',
+    'N'
+)
+
+timesheet_df['Sunday_Penality_flag'] = np.where(
+    timesheet_df['DOTW'] == 7,
+    'Y',
+    'N'
+)
+
+
+
+# Need to add shift count feature per day so that we can calculate the below pay rule: 
+# Broken Shift Minimum 3 Hours	  
+# An employee who works broken shifts is entitled to be paid for at least 3 hours for each period of duty on a broken shift even if the employee works for a shorter time.
 
 
 
@@ -193,40 +243,6 @@ first_2_hours_calc = np.minimum(
     40 - (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'])
 )
 
-# timesheet_df['OT First 2 Hours'] = np.where(
-#     timesheet_df['Weekly OT Flag'] == 'Y' & (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'] < 38) 
-#     & timesheet_df['Weekly OT Hours'] >0 ,
-#     timesheet_df['Weekly OT Hours'] - 2
-
-# Where Weekly OT Hours is greater than 
-# timesheet_df['OT First 2 Hours'] = np.where(
-#     (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 0) & (timesheet_df['Weekly OT Hours'] < 2)
-#     & ((timesheet_df['weekly cumulative total hours'] - 38) - timesheet_df['Weekly OT Hours']) <= 0,
-#     2,
-#     np.where(
-#         (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Weekly OT Hours'] > 2),
-#         0,
-#         0
-#     )
-# )
-
-
-# # Calculate hours over 38 but before 40
-# first_ot_hours = np.clip(
-#     timesheet_df['weekly cumulative total hours'] - 38,  # hours past 38
-#     0,                                                   # lower bound
-#     2                                                    # upper bound
-# )
-
-# # But don't allow more than the shift's OT hours
-# first_ot_hours = np.minimum(first_ot_hours, timesheet_df['Weekly OT Hours'])
-
-# # Apply only to rows flagged for OT
-# timesheet_df['OT First 2 Hours'] = np.where(
-#     timesheet_df['Weekly OT Flag'] == 'Y',
-#     first_ot_hours,
-#     0
-# )
 
 
 # Step 1 – calculate candidate first 2 hours
@@ -256,7 +272,7 @@ timesheet_df['OT Post 2 Hours'] = (
     timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
 )
 
-timesheet_df['OT200']
+#timesheet_df['OT200']
 
 
 
