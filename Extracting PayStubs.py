@@ -183,6 +183,8 @@ df["EmployeeNumber"] = emp_num
 rename_map = {"Column2": "Qty", "Column3": "Rate", "Column4": "Current", "Column5": "YTD Amount"}
 df = df.rename(columns=rename_map)
 
+df.to_csv('linr186.csv')
+
 # ------------- STEP 5: Extract Pay Date from Column8 + fill down -------------
 df["Pay Date"] = col8_str.apply(lambda s: _extract_date_after_key(s, "Pay Date:"))
 df["Pay Date"] = df["Pay Date"].ffill()
@@ -257,7 +259,21 @@ df.drop(columns=cols_to_drop, inplace=True)
 
 
 
+emplids_mapping = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Employee IDs.xlsx", sheet_name='EMPLIDS')
 
+
+
+df = df.merge(
+    emplids_mapping[['Source File', 'Employee ID Consolidated', 'Employee Name']],
+    on='Source File',
+    how='left'
+)
+
+
+
+df['EmployeeNumber'] = df['Employee ID Consolidated']
+
+df.to_csv('line272.csv')
 print(df.columns)
 
 # Create a copy of the relevant columns
@@ -353,7 +369,6 @@ def row_matches_all_patterns(row):
 df = df[~df.apply(row_matches_all_patterns, axis=1)]
 
 
-df["EmployeeNumber"] = df["EmployeeNumber"].ffill()
 
 value_to_drop = "Employee Pay Slip"
 
@@ -439,8 +454,7 @@ df['Current'] = (
 
 
 
-import numpy as np
-import pandas as pd
+
 
 # Ensure 'Current' is numeric for comparison
 df['Current_num'] = pd.to_numeric(df['Current'], errors='coerce')
@@ -474,6 +488,10 @@ df.drop(columns=['Current_num'], inplace=True)
 # Drop rows with nulls in specified columns
 df = df.dropna(subset=['Qty', 'Rate', 'Current'], how='all')
 
+
+# Create 'EmpID_key'
+df['EmpID_keI'] = df['EmployeeNumber'].astype(str) + '_' + df['Pay Date'].astype(str)
+
 df.to_csv('Test_line462.csv')
 
 # Pivot the data
@@ -488,9 +506,10 @@ print(df_combined)
 # Convert 'Pay Date' to date-only
 df_combined['Pay Date'] = pd.to_datetime(df_combined['Pay Date']).dt.date
 
-# Create 'EmpID_key'
-df_combined['EmpID_key'] = df_combined['EmployeeNumber'] + '_' + df_combined['Pay Date'].astype(str)
 
+
+# Create 'EmpID_key'
+df_combined['EmpID_key'] = df_combined['EmployeeNumber'].astype(str) + '_' + df_combined['Pay Date'].astype(str)
 
 
 df_combined = df_combined.drop(columns=['Qty', 'Rate', 'Current'])
@@ -507,6 +526,7 @@ pd.DataFrame(df_combined.columns, columns=['Column Names']).to_csv('df_combined_
 
 grouped_df = df_combined.groupby('EmpID_key').agg({
     'EmployeeNumber': 'first',
+    'Employee Name' : 'first',
     'Pay Date': 'first',
     'Extra Payment': 'sum',
     'First Aid Allowance': 'sum',
