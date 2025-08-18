@@ -444,13 +444,28 @@ import pandas as pd
 
 # Ensure 'Current' is numeric for comparison
 df['Current_num'] = pd.to_numeric(df['Current'], errors='coerce')
+df['Qty'] = pd.to_numeric(df['Qty'], errors='coerce')
+df['Rate'] = pd.to_numeric(df['Rate'], errors='coerce')
+
+df['Earnings and Hours'] = df['Earnings and Hours'].str.strip()
+df['Qty'] = df['Qty'].where(df['Qty'].isnull(), df['Qty'].astype(str).str.strip())
+df['Rate'] = df['Rate'].where(df['Rate'].isnull(), df['Rate'].astype(str).str.strip())
+
+
+df['Earnings and Hours'].replace(['', 'nan'], np.nan, inplace=True)
+
+print(df['Earnings and Hours'].unique())
+
+
 
 # Apply the overwrite logic
 df['Earnings and Hours'] = np.where(
-    df['Earnings and Hours'].isnull() & (df['Current_num'] > 0),
+    df['Earnings and Hours'].isnull() & df['Qty'].isnull() & df['Rate'].isnull() & (df['Current_num'] > 0),
+   
     'Gross Pay',
     df['Earnings and Hours']
 )
+
 
 # Optional: drop the helper column if you don't need it
 df.drop(columns=['Current_num'], inplace=True)
@@ -481,6 +496,12 @@ df_combined['EmpID_key'] = df_combined['EmployeeNumber'] + '_' + df_combined['Pa
 df_combined = df_combined.drop(columns=['Qty', 'Rate', 'Current'])
 
 
+print(df_combined.columns)
+
+
+# Convert column names to a DataFrame and export to CSV
+pd.DataFrame(df_combined.columns, columns=['Column Names']).to_csv('df_combined_columns.csv', index=False)
+
 
 
 
@@ -498,7 +519,27 @@ grouped_df = df_combined.groupby('EmpID_key').agg({
     'PAYG Tax': 'sum',
     'Public Holiday Hourly': 'sum',
     'Sick Leave Hourly': 'sum',
-    'Super': 'sum'
+    'Super': 'sum',
+    'Source File': 'first',
+    'Adjustments to Net Pay': 'sum',
+    'Annual Holiday Loadi...': 'sum',
+    'Annual Leave': 'sum',
+    'BACK PAY': 'sum',
+    'Bereavement': 'sum',
+    'Holiday Hourly': 'sum',
+    'Holiday Loading': 'sum',
+    'Holiday Salary': 'sum',
+    'Hourly Public Holiday': 'sum',
+    'Leave W/o Pay': 'sum',
+    'Paid Time Off': 'sum',
+    'Personal Hourly': 'sum',
+    'Personal Salary': 'sum',
+    'Public Holiday Not W...': 'sum',
+    'Reimbursement': 'sum',
+    'Salary': 'sum',
+    'Sick Leave Salary': 'sum',
+    'Supervisor Allowance': 'sum'
+
 }).reset_index()
 
 
