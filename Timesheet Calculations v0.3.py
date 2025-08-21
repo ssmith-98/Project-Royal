@@ -18,6 +18,8 @@ def load_and_clean_timesheet(file_path):
     for col in datetime_cols:
         df[col] = pd.to_datetime(df[col], errors='coerce')
 
+    
+
     df['TS_Start_Date'] = df['Timesheet Start Time'].dt.date
     df['TS_End_Date'] = df['Timesheet End Time'].dt.date
     df['TS_TimeOnly_Start'] = df['Timesheet Start Time'].dt.time
@@ -74,6 +76,13 @@ timesheet_df = timesheet_df.merge(
     emplids_mapping[['Team member', 'Employee ID Consolidated']],
     on='Team member',
     how='left'
+)
+
+timesheet_df['Employee ID Consolidated'] = (
+    timesheet_df['Employee ID Consolidated']
+    .astype(str)
+    .str.replace(r"\.0$", "", regex=True)  # strip only a trailing .0
+    .str.strip()
 )
 
 
@@ -142,6 +151,18 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
 # Broken Shift Minimum 3 Hours	  
 # An employee who works broken shifts is entitled to be paid for at least 3 hours for each period of duty on a broken shift even if the employee works for a shorter time.
 
+# Pivot table seems to indicate that broken shifts exist 
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -157,7 +178,7 @@ timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'])
 timesheet_df['Week Ending'] = timesheet_df['TS_Start_Date'] + pd.to_timedelta(
     6 - timesheet_df['TS_Start_Date'].dt.weekday, unit='d'
 )
-
+timesheet_df['TS_Start_Date'] = timesheet_df['Timesheet Start Time'].dt.date
 
 
 # Aggregate weekly totals per team member
@@ -167,7 +188,85 @@ weekly_df = weekly_df.sort_values(['Team member', 'Week Ending'])
 
 
 # Step 4: Group by Team Member and Week Ending, then sum total shift hours 
-timesheet_df['weekly cumulative total hours'] = timesheet_df.groupby( ['Team member', 'Week Ending'] )['Total Shift Hours'].transform('cumsum')
+timesheet_df['weekly cumulative total hours'] = timesheet_df.groupby( ['Employee ID Consolidated', 'Week Ending'] )['Total Shift Hours'].transform('cumsum')
+
+
+
+
+
+
+import pandas as pd
+
+# Ensure date columns are datetime.date and time columns are datetime.time
+
+# timesheet_df['TS_TimeOnly_Start'] = pd.to_datetime(timesheet_df['TS_TimeOnly_Start'], format='%H:%M:%S').dt.time
+# timesheet_df['TS_TimeOnly_End'] = pd.to_datetime(timesheet_df['TS_TimeOnly_End'], format='%H:%M:%S').dt.time
+
+# Create full datetime columns using combine
+timesheet_df['Start_dt'] = timesheet_df.apply(
+    lambda row: pd.Timestamp.combine(row['TS_Start_Date'], row['TS_TimeOnly_Start']), axis=1
+)
+timesheet_df['End_dt'] = timesheet_df.apply(
+    lambda row: pd.Timestamp.combine(row['TS_End_Date'], row['TS_TimeOnly_End']), axis=1
+)
+
+
+# Sort by employee and start datetime
+
+
+timesheet_df = timesheet_df.sort_values(by=['Employee ID Consolidated', 'Shift Start Time']).reset_index(drop=True)
+
+# Shift start datetime within each employee group
+#timesheet_df['Next_Start_dt'] = timesheet_df['Start_dt'].shift(-1)
+# timesheet_df['Next_Start_dt'] = timesheet_df.groupby('Employee ID Consolidated')['Shift Start Time'].shift(-1)
+
+
+timesheet_df = timesheet_df.drop_duplicates(
+    subset=['Employee ID Consolidated', 'Shift Start Time']
+).sort_values(
+    by=['Employee ID Consolidated', 'Shift Start Time']
+).reset_index(drop=True)
+
+timesheet_df['Next_Start_dt'] = (
+    timesheet_df.groupby('Employee ID Consolidated')['Shift Start Time'].shift(-1)
+)
+
+
+# Calculate gap in hours between current end and next start
+timesheet_df['Gap_to_Next_Shift_Hours'] = (
+    (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600
+)
+
+# Optional: filter or flag gaps
+# timesheet_df['Flag_Short_Gap'] = timesheet_df['Gap_to_Next_Shift_Hours'] < 12
+
+# Display or export
+print(timesheet_df[['Employee ID Consolidated', 'Start_dt', 'End_dt', 'Gap_to_Next_Shift_Hours']])
+
+
+
+
+# def flag_bad_next_start(df):
+#     # Ensure datetimes are proper dtype
+#     df['Start_dt'] = pd.to_datetime(df['Start_dt'])
+#     df['End_dt'] = pd.to_datetime(df['End_dt'])
+#     df['Next_Start_dt'] = pd.to_datetime(df['Next_Start_dt'])
+    
+#     # Flag where Next_Start_dt is not strictly after End_dt
+#     mask = df['Next_Start_dt'] <= df['End_dt']
+    
+#     return df.loc[mask, [
+#         'Employee ID Consolidated',
+#         'Start_dt', 'End_dt', 'Next_Start_dt'
+#     ]].sort_values(by=['Employee ID Consolidated','Start_dt'])
+
+
+# problem_rows = flag_bad_next_start(timesheet_df)
+# print('problem rows')
+# print(problem_rows)
+
+
+
 
 
 # Function to calculate rolling totals for any week window
@@ -195,7 +294,8 @@ timesheet_df = timesheet_df.merge(
     how='left'
 )
 
-# 1 week roster so Weekly Ordinary Hours is 38 hours
+# 1 week roster so Weekly Ordinary Hours is 38 hours --
+### !!!!!!!!! NEED TO CHANGE THIS TO TWO WEEKS !!!!!!!!!!! ####
 
 timesheet_df['Weekly OT Flag'] = np.where(
     timesheet_df['weekly cumulative total hours'] > 38,
@@ -247,7 +347,7 @@ first_2_hours_calc = np.minimum(
 
 # Step 1 – calculate candidate first 2 hours
 timesheet_df['OT First 2 Hours'] = np.where(
-    (timesheet_df['Weekly OT Flag'] == 'Y'),
+    (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Sunday_Penality_flag'] == 'N'),
     np.clip(timesheet_df['Weekly OT Hours'], 0, 2),
     0
 )
@@ -270,7 +370,15 @@ timesheet_df['OT First 2 Hours'] = (
 
 timesheet_df['OT Post 2 Hours'] = (
     timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
+
 )
+
+timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member'])
+
+
+# Use 10 hours for daily overtime 
+
+
 
 #timesheet_df['OT200']
 
