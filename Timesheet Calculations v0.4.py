@@ -174,28 +174,60 @@ timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'])
 
 
 
-# Week Ending (Sunday)
-timesheet_df['Week Ending'] = timesheet_df['TS_Start_Date'] + pd.to_timedelta(
-    6 - timesheet_df['TS_Start_Date'].dt.weekday, unit='d'
+# 1 Week Ending (Sunday)
+# timesheet_df['Roster Ending'] = timesheet_df['TS_Start_Date'] + pd.to_timedelta(
+#     6 - timesheet_df['TS_Start_Date'].dt.weekday, unit='d'
+# )
+
+
+# 2 Weeks Ending (Sunday)
+timesheet_df['Roster Ending'] = timesheet_df['TS_Start_Date'] + pd.to_timedelta(
+    13 - timesheet_df['TS_Start_Date'].dt.weekday, unit='d'
 )
+
 timesheet_df['TS_Start_Date'] = timesheet_df['Timesheet Start Time'].dt.date
 
 
 # Aggregate weekly totals per team member
-weekly_df = timesheet_df.groupby(['Team member', 'Week Ending'], as_index=False)['Total Shift Hours'].sum()
+weekly_df = timesheet_df.groupby(['Team member', 'Roster Ending'], as_index=False)['Total Shift Hours'].sum()
 weekly_df.rename(columns={'Total Shift Hours': 'weekly total hours'}, inplace=True)
-weekly_df = weekly_df.sort_values(['Team member', 'Week Ending'])
+weekly_df = weekly_df.sort_values(['Team member', 'Roster Ending'])
 
 
-# Step 4: Group by Team Member and Week Ending, then sum total shift hours 
-timesheet_df['weekly cumulative total hours'] = timesheet_df.groupby( ['Employee ID Consolidated', 'Week Ending'] )['Total Shift Hours'].transform('cumsum')
-
-
-
+# Step 4: Group by Team Member and Roster Ending, then sum total shift hours 
+timesheet_df['Roster Period Cumulative Total Hours'] = timesheet_df.groupby( ['Employee ID Consolidated', 'Roster Ending'] )['Total Shift Hours'].transform('cumsum')
 
 
 
-import pandas as pd
+
+
+
+# Function to calculate rolling totals for any week window
+def add_rolling_weeks(df, weeks=4):
+    df = df.sort_values(['Team member', 'Roster Ending'])
+    df[f'rolling_{weeks}_weeks_hours'] = (
+        df.groupby('Team member')['weekly total hours']
+          .rolling(window=weeks, min_periods=1)
+          .sum()
+          .reset_index(level=0, drop=True)
+    )
+    df[f'Roster Ending ({weeks}w)'] = df['Roster Ending']
+    return df
+
+# Example: 2, 3, 4, 8-week rolling totals
+# Commented out due to 1 week roster being used
+#for w in [1, 2, 3, 4, 8]:
+for w in [2]:
+    weekly_df = add_rolling_weeks(weekly_df, weeks=w)
+
+# Optional: merge rolling totals back to original timesheet_df if needed
+timesheet_df = timesheet_df.merge(
+    weekly_df.drop(columns=['weekly total hours']),
+    on=['Team member', 'Roster Ending'],
+    how='left'
+)
+
+
 
 # Ensure date columns are datetime.date and time columns are datetime.time
 
@@ -215,10 +247,6 @@ timesheet_df['End_dt'] = timesheet_df.apply(
 
 
 timesheet_df = timesheet_df.sort_values(by=['Employee ID Consolidated', 'Shift Start Time']).reset_index(drop=True)
-
-# Shift start datetime within each employee group
-#timesheet_df['Next_Start_dt'] = timesheet_df['Start_dt'].shift(-1)
-# timesheet_df['Next_Start_dt'] = timesheet_df.groupby('Employee ID Consolidated')['Shift Start Time'].shift(-1)
 
 
 timesheet_df = timesheet_df.drop_duplicates(
@@ -244,68 +272,24 @@ timesheet_df['Gap_to_Next_Shift_Hours'] = (
 print(timesheet_df[['Employee ID Consolidated', 'Start_dt', 'End_dt', 'Gap_to_Next_Shift_Hours']])
 
 
-
-
-# def flag_bad_next_start(df):
-#     # Ensure datetimes are proper dtype
-#     df['Start_dt'] = pd.to_datetime(df['Start_dt'])
-#     df['End_dt'] = pd.to_datetime(df['End_dt'])
-#     df['Next_Start_dt'] = pd.to_datetime(df['Next_Start_dt'])
-    
-#     # Flag where Next_Start_dt is not strictly after End_dt
-#     mask = df['Next_Start_dt'] <= df['End_dt']
-    
-#     return df.loc[mask, [
-#         'Employee ID Consolidated',
-#         'Start_dt', 'End_dt', 'Next_Start_dt'
-#     ]].sort_values(by=['Employee ID Consolidated','Start_dt'])
-
-
-# problem_rows = flag_bad_next_start(timesheet_df)
-# print('problem rows')
-# print(problem_rows)
-
-
-
-
-
-# Function to calculate rolling totals for any week window
-def add_rolling_weeks(df, weeks=4):
-    df = df.sort_values(['Team member', 'Week Ending'])
-    df[f'rolling_{weeks}_weeks_hours'] = (
-        df.groupby('Team member')['weekly total hours']
-          .rolling(window=weeks, min_periods=1)
-          .sum()
-          .reset_index(level=0, drop=True)
-    )
-    df[f'Week Ending ({weeks}w)'] = df['Week Ending']
-    return df
-
-# Example: 2, 3, 4, 8-week rolling totals
-# Commented out due to 1 week roster being used
-#for w in [1, 2, 3, 4, 8]:
-for w in [1]:
-    weekly_df = add_rolling_weeks(weekly_df, weeks=w)
-
-# Optional: merge rolling totals back to original timesheet_df if needed
-timesheet_df = timesheet_df.merge(
-    weekly_df.drop(columns=['weekly total hours']),
-    on=['Team member', 'Week Ending'],
-    how='left'
-)
+timesheet_df['Daily_Ordinary_Hours'] = 7.6
 
 # 1 week roster so Weekly Ordinary Hours is 38 hours --
 ### !!!!!!!!! NEED TO CHANGE THIS TO TWO WEEKS !!!!!!!!!!! ####
 
+
+Max_Ord_Hrs = 76
+First_2_Hrs_OT_Cutoff = 78
+
 timesheet_df['Weekly OT Flag'] = np.where(
-    timesheet_df['weekly cumulative total hours'] > 38,
+    timesheet_df['Roster Period Cumulative Total Hours'] > Max_Ord_Hrs,
     'Y',
     'N'
 )
 
 # Condition: OT flag is Y and cumulative hours *before* this shift exceed 38
 condition1 = (timesheet_df['Weekly OT Flag'] == 'Y') & \
-             ((timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours']) > 38)
+             ((timesheet_df['Roster Period Cumulative Total Hours'] - timesheet_df['Total Shift Hours']) > Max_Ord_Hrs)
 
 # Condition: OT flag is Y (used in second np.where)
 condition2 = timesheet_df['Weekly OT Flag'] == 'Y'
@@ -318,7 +302,7 @@ timesheet_df['Weekly OT Hours'] = np.where(
         condition2,
         # Part of this shift may push us over 38, so subtract the remaining non-OT hours
         timesheet_df['Total Shift Hours'] - (
-            38 - (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'])
+            Max_Ord_Hrs - (timesheet_df['Roster Period Cumulative Total Hours'] - timesheet_df['Total Shift Hours'])
         ),
         0
     )
@@ -332,15 +316,18 @@ timesheet_df['Weekly OT Hours'] = timesheet_df['Weekly OT Hours'].clip(lower=0)
 
 # First two hours will be on the weekly OT hours basis until told otherwise by CU or VU - 14.08.25
 # Condition: weekly cumulative hours > 38 but <= 40
+
+
+
 mask_first_2_ot = (
-    (timesheet_df['weekly cumulative total hours'] > 38) &
-    (timesheet_df['weekly cumulative total hours'] <= 40)
+    (timesheet_df['Roster Period Cumulative Total Hours'] > Max_Ord_Hrs) &
+    (timesheet_df['Roster Period Cumulative Total Hours'] <= First_2_Hrs_OT_Cutoff)
 )
 
 # Amount of shift hours that fall in the 38–40 window
 first_2_hours_calc = np.minimum(
     timesheet_df['Total Shift Hours'],
-    40 - (timesheet_df['weekly cumulative total hours'] - timesheet_df['Total Shift Hours'])
+    First_2_Hrs_OT_Cutoff - (timesheet_df['Roster Period Cumulative Total Hours'] - timesheet_df['Total Shift Hours'])
 )
 
 
@@ -354,17 +341,17 @@ timesheet_df['OT First 2 Hours'] = np.where(
 
 # Step 2 – create pre-shift cumulative hours
 timesheet_df['pre_shift_cumulative'] = (
-    timesheet_df['weekly cumulative total hours'] - timesheet_df['Weekly OT Hours']
+    timesheet_df['Roster Period Cumulative Total Hours'] - timesheet_df['Weekly OT Hours']
 )
 
 # Step 3 – zero out if cumulative already ≥ 40 before the shift
-timesheet_df.loc[timesheet_df['pre_shift_cumulative'] >= 40, 'OT First 2 Hours'] = 0
+timesheet_df.loc[timesheet_df['pre_shift_cumulative'] >= First_2_Hrs_OT_Cutoff, 'OT First 2 Hours'] = 0
 
 # Step 4 – ensure only first occurrence in week gets the "first 2 hours"
 # Assuming you have a 'Week' column or can group by year-week
 timesheet_df['OT First 2 Hours'] = (
     timesheet_df
-    .groupby(['Team member', 'Week Ending'])['OT First 2 Hours']
+    .groupby(['Team member', 'Roster Ending'])['OT First 2 Hours']
     .transform(lambda x: x.where(x.cumsum() <= 2, 0))
 )
 
