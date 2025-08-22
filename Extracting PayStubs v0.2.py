@@ -573,6 +573,7 @@ for col in df_combined.columns:
 #           agg_dict[col] = "sum"
 
 grouped_df = df_combined.groupby('EmpID_key').agg({
+'Pay Date' : 'last',
 'EmployeeNumber': 'first',
 'Rate_Adjustments to Net Pay' : 'first',
 'Rate_Annual Holiday Loadi...' : 'first',
@@ -675,7 +676,11 @@ grouped_df = df_combined.groupby('EmpID_key').agg({
 
 
 # Define ordered columns in Rate–Qty–Current trios
-ordered_columns = ['EmpID_key', 'EmployeeNumber',
+ordered_columns = [
+'EmpID_key', 
+                   
+'EmployeeNumber', 
+'Pay Date',
                    
 'Rate_Adjustments to Net Pay',
 'Qty_Adjustments to Net Pay',
@@ -777,19 +782,34 @@ ordered_columns = ['EmpID_key', 'EmployeeNumber',
 # Reorder columns
 grouped_df = grouped_df[ordered_columns]
 
-# Drop columns where *all* values are 0
-def drop_all_zero_columns(df):
-    """Drop columns where all values are 0 or NaN, and print which were dropped."""
-    mask = (df.fillna(0) != 0).any(axis=0)  # True = keep
-    dropped_cols = df.columns[~mask]        # columns where mask = False
-    
+def drop_all_zero_columns(df, always_keep=None):
+    """
+    Drop columns where all values are 0 or NaN, except those in always_keep.
+    Prints which columns were dropped.
+    """
+    if always_keep is None:
+        always_keep = []
+
+    # Create a mask for columns to keep (not all zero or NaN)
+    mask = (df.fillna(0) != 0).any(axis=0)
+
+    # Ensure always_keep columns are retained
+    for col in always_keep:
+        if col in df.columns:
+            mask[col] = True
+
+    dropped_cols = df.columns[~mask]
+
     if len(dropped_cols) > 0:
         print("Dropped columns:", list(dropped_cols))
-        print("Number Dropped Columns: ", len(dropped_cols))
+        print("Number of Dropped Columns:", len(dropped_cols))
     else:
         print("No columns dropped (none were all zero).")
-    
+
     return df.loc[:, mask]
+
+grouped_df = drop_all_zero_columns(grouped_df, always_keep=["Pay Date"])
+
 
 # Usage
 grouped_df = drop_all_zero_columns(grouped_df)

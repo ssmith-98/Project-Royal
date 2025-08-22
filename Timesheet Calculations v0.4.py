@@ -58,7 +58,7 @@ def calculate_shift_hours(start_time, end_time, shift_start, shift_end):
 timesheet_file_path = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet detail 1 Nov 2023 to 30 June 2025.xlsx"
 emplids_mapping = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Employee IDs.xlsx", sheet_name='EMPLIDS')
 
-payroll_data = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Collated_Output.xlsx"
+payroll_data = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Payroll_Output.xlsx"
 
 
 
@@ -202,7 +202,7 @@ timesheet_df['Roster Period Cumulative Total Hours'] = timesheet_df.groupby( ['E
 
 
 
-# Function to calculate rolling totals for any week window
+#Function to calculate rolling totals for any week window
 def add_rolling_weeks(df, weeks=4):
     df = df.sort_values(['Team member', 'Roster Ending'])
     df[f'rolling_{weeks}_weeks_hours'] = (
@@ -217,7 +217,7 @@ def add_rolling_weeks(df, weeks=4):
 # Example: 2, 3, 4, 8-week rolling totals
 # Commented out due to 1 week roster being used
 #for w in [1, 2, 3, 4, 8]:
-for w in [2]:
+for w in [1, 2]:
     weekly_df = add_rolling_weeks(weekly_df, weeks=w)
 
 # Optional: merge rolling totals back to original timesheet_df if needed
@@ -228,6 +228,50 @@ timesheet_df = timesheet_df.merge(
 )
 
 
+
+# Create 'EmpID_key'
+timesheet_df['EmpID_key'] = timesheet_df['Employee ID Consolidated'].astype(str) + '_' + timesheet_df['Roster Ending (1w)'].astype(str)
+
+print('columns as per line 235')
+print(timesheet_df.columns)
+
+
+timesheet_df_weekly_for_Leave = timesheet_df.groupby('EmpID_key').agg({
+
+    'Team member' : 'first', 
+    # 'Timesheet Start Time', 'Timesheet End Time',
+    #    'Timesheet Total Time', 'Shift Start Time', 'Shift End Time',
+    #    'Shift Total Time', 'Timesheet location', 'Timesheet area',
+       #'Timesheet leave policy', 'Timesheet Employee Comment',
+       
+       #'Timesheet Cost',
+    #      'TS_Start_Date', 'TS_End_Date', 'TS_TimeOnly_Start',
+    #    'TS_TimeOnly_End', 'Employee ID Consolidated', 'Difference in Hours',
+       'Day Shift Hours' : 'sum',
+       'Night Shift Hours' : 'sum', 
+    #    'DOTW', 'Weekday',
+    #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
+       'Total Shift Hours' : 'sum',
+       'Roster Ending' : 'last', 
+       'Roster Period Cumulative Total Hours' : 'last',
+
+       #'rolling_1_weeks_hours', 
+       'Roster Ending (1w)' : 'last', 
+       #'rolling_2_weeks_hours',
+       #'Roster Ending (2w)' : 'last'
+
+
+
+})
+
+payroll_data = pd.read_excel(payroll_data)
+
+timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.merge(payroll_data,
+                                   on=['EmpID_key'],
+                                   how='left')
+
+
+timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
 
 # Ensure date columns are datetime.date and time columns are datetime.time
 
@@ -274,8 +318,11 @@ print(timesheet_df[['Employee ID Consolidated', 'Start_dt', 'End_dt', 'Gap_to_Ne
 
 timesheet_df['Daily_Ordinary_Hours'] = 7.6
 
+
+
+
+
 # 1 week roster so Weekly Ordinary Hours is 38 hours --
-### !!!!!!!!! NEED TO CHANGE THIS TO TWO WEEKS !!!!!!!!!!! ####
 
 
 Max_Ord_Hrs = 76
