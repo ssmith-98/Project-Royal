@@ -1,39 +1,101 @@
 Column Names
 Earnings and Hours
+Qty
+Rate
+Current
 Source File
 EmployeeNumber
 Pay Date
 Employee ID Consolidated
 Employee Name
-EmpID_keI
-Adjustments to Net Pay
-Annual Holiday Loadi...
-Annual Leave
-BACK PAY
-Bereavement
-Extra Payment
-First Aid Allowance
-Gross Pay
-Holiday Hourly
-Holiday Loading
-Holiday Salary
-Hourly Day
-Hourly Night
-Hourly Public Holiday
-Hourly Saturday
-Hourly Sunday
-Leave W/o Pay
-Net Pay
-PAYG Tax
-Paid Time Off
-Personal Hourly
-Personal Salary
-Public Holiday Hourly
-Public Holiday Not W...
-Reimbursement
-Salary
-Sick Leave Hourly
-Sick Leave Salary
-Super
-Supervisor Allowance
 EmpID_key
+Current_Adjustments to Net Pay
+Current_Annual Holiday Loadi...
+Current_Annual Leave
+Current_BACK PAY
+Current_Bereavement
+Current_Extra Payment
+Current_First Aid Allowance
+Current_Gross Pay
+Current_Holiday Hourly
+Current_Holiday Loading
+Current_Holiday Salary
+Current_Hourly Day
+Current_Hourly Night
+Current_Hourly Public Holiday
+Current_Hourly Saturday
+Current_Hourly Sunday
+Current_Leave W/o Pay
+Current_Net Pay
+Current_PAYG Tax
+Current_Paid Time Off
+Current_Personal Hourly
+Current_Personal Salary
+Current_Public Holiday Hourly
+Current_Public Holiday Not W...
+Current_Reimbursement
+Current_Salary
+Current_Sick Leave Hourly
+Current_Sick Leave Salary
+Current_Super
+Current_Supervisor Allowance
+Qty_Adjustments to Net Pay
+Qty_Annual Holiday Loadi...
+Qty_Annual Leave
+Qty_BACK PAY
+Qty_Bereavement
+Qty_Extra Payment
+Qty_First Aid Allowance
+Qty_Gross Pay
+Qty_Holiday Hourly
+Qty_Holiday Loading
+Qty_Holiday Salary
+Qty_Hourly Day
+Qty_Hourly Night
+Qty_Hourly Public Holiday
+Qty_Hourly Saturday
+Qty_Hourly Sunday
+Qty_Leave W/o Pay
+Qty_Net Pay
+Qty_PAYG Tax
+Qty_Paid Time Off
+Qty_Personal Hourly
+Qty_Personal Salary
+Qty_Public Holiday Hourly
+Qty_Public Holiday Not W...
+Qty_Reimbursement
+Qty_Salary
+Qty_Sick Leave Hourly
+Qty_Sick Leave Salary
+Qty_Super
+Qty_Supervisor Allowance
+Rate_Adjustments to Net Pay
+Rate_Annual Holiday Loadi...
+Rate_Annual Leave
+Rate_BACK PAY
+Rate_Bereavement
+Rate_Extra Payment
+Rate_First Aid Allowance
+Rate_Gross Pay
+Rate_Holiday Hourly
+Rate_Holiday Loading
+Rate_Holiday Salary
+Rate_Hourly Day
+Rate_Hourly Night
+Rate_Hourly Public Holiday
+Rate_Hourly Saturday
+Rate_Hourly Sunday
+Rate_Leave W/o Pay
+Rate_Net Pay
+Rate_PAYG Tax
+Rate_Paid Time Off
+Rate_Personal Hourly
+Rate_Personal Salary
+Rate_Public Holiday Hourly
+Rate_Public Holiday Not W...
+Rate_Reimbursement
+Rate_Salary
+Rate_Sick Leave Hourly
+Rate_Sick Leave Salary
+Rate_Super
+Rate_Supervisor Allowance

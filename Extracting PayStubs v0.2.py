@@ -95,7 +95,7 @@ INPUT_PATH  = r"C:/Users/smits/OneDrive - SW Accountants & Advisors Pty Ltd\Desk
 
 # r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Files Provided by DB 20 July 25\Collated data\B1.xlsx"
 SHEET_NAME  = "Sheet1"
-OUTPUT_PATH = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Collated_Output.xlsx"
+OUTPUT_PATH = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Payroll_Output.xlsx"
 OUTPUT_PATH_1 = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Super_Output.xlsx"
 
 
@@ -552,6 +552,10 @@ print(df_combined.columns)
 # Convert column names to a DataFrame and export to CSV
 pd.DataFrame(df_combined.columns, columns=['Column Names']).to_csv('df_combined_columns.csv', index=False)
 
+df.drop(columns=['Earnings and Hours',
+                    'Qty',
+                    'Rate'], inplace=True)
+ 
 
 
 # Convert all non-key columns to numeric
@@ -559,133 +563,236 @@ for col in df_combined.columns:
     if col != "EmpID_key":
         df_combined[col] = pd.to_numeric(df_combined[col], errors="coerce")
 
-# Build aggregation dictionary only for valid columns
-agg_dict = {}
-for col in df_combined.columns:
-    if col == "EmpID_key":
-        continue
-    if df_combined[col].notna().any():
-        if col.startswith("Current_") or col.startswith("Qty_"):
-          agg_dict[col] = "sum"
-    elif col.startswith("Rate_"):
-        agg_dict[col] = "first"   # or "mean" if you prefer
+# # Build aggregation dictionary only for valid columns
+# agg_dict = {}
+# for col in df_combined.columns:
+#     if col == "EmpID_key":
+#         continue
+#     if df_combined[col].notna().any():
+#         if col.startswith("Current_") or col.startswith("Qty_"):
+#           agg_dict[col] = "sum"
+
+grouped_df = df_combined.groupby('EmpID_key').agg({
+'EmployeeNumber': 'first',
+'Rate_Adjustments to Net Pay' : 'first',
+'Rate_Annual Holiday Loadi...' : 'first',
+'Rate_Annual Leave' : 'first',
+'Rate_BACK PAY' : 'first',
+'Rate_Bereavement' : 'first',
+'Rate_Extra Payment' : 'first',
+'Rate_First Aid Allowance' : 'first',
+'Rate_Gross Pay' : 'first',
+'Rate_Holiday Hourly' : 'first',
+'Rate_Holiday Loading' : 'first',
+'Rate_Holiday Salary' : 'first',
+'Rate_Hourly Day' : 'first',
+'Rate_Hourly Night' : 'first',
+'Rate_Hourly Public Holiday' : 'first',
+'Rate_Hourly Saturday' : 'first',
+'Rate_Hourly Sunday' : 'first',
+'Rate_Leave W/o Pay' : 'first',
+'Rate_Net Pay' : 'first',
+'Rate_PAYG Tax' : 'first',
+'Rate_Paid Time Off' : 'first',
+'Rate_Personal Hourly' : 'first',
+'Rate_Personal Salary' : 'first',
+'Rate_Public Holiday Hourly' : 'first',
+'Rate_Public Holiday Not W...' : 'first',
+'Rate_Reimbursement' : 'first',
+'Rate_Salary' : 'first',
+'Rate_Sick Leave Hourly' : 'first',
+'Rate_Sick Leave Salary' : 'first',
+'Rate_Super' : 'first',
+'Rate_Supervisor Allowance' : 'first',
+'Qty_Adjustments to Net Pay' : 'sum',
+'Qty_Annual Holiday Loadi...' : 'sum',
+'Qty_Annual Leave' : 'sum',
+'Qty_BACK PAY' : 'sum',
+'Qty_Bereavement' : 'sum',
+'Qty_Extra Payment' : 'sum',
+'Qty_First Aid Allowance' : 'sum',
+'Qty_Gross Pay' : 'sum',
+'Qty_Holiday Hourly' : 'sum',
+'Qty_Holiday Loading' : 'sum',
+'Qty_Holiday Salary' : 'sum',
+'Qty_Hourly Day' : 'sum',
+'Qty_Hourly Night' : 'sum',
+'Qty_Hourly Public Holiday' : 'sum',
+'Qty_Hourly Saturday' : 'sum',
+'Qty_Hourly Sunday' : 'sum',
+'Qty_Leave W/o Pay' : 'sum',
+'Qty_Net Pay' : 'sum',
+'Qty_PAYG Tax' : 'sum',
+'Qty_Paid Time Off' : 'sum',
+'Qty_Personal Hourly' : 'sum',
+'Qty_Personal Salary' : 'sum',
+'Qty_Public Holiday Hourly' : 'sum',
+'Qty_Public Holiday Not W...' : 'sum',
+'Qty_Reimbursement' : 'sum',
+'Qty_Salary' : 'sum',
+'Qty_Sick Leave Hourly' : 'sum',
+'Qty_Sick Leave Salary' : 'sum',
+'Qty_Super' : 'sum',
+'Qty_Supervisor Allowance' : 'sum',
+
+'Current_Adjustments to Net Pay' : 'sum',
+'Current_Annual Holiday Loadi...' : 'sum',
+'Current_Annual Leave' : 'sum',
+'Current_BACK PAY' : 'sum',
+'Current_Bereavement' : 'sum',
+'Current_Extra Payment' : 'sum',
+'Current_First Aid Allowance' : 'sum',
+'Current_Gross Pay' : 'sum',
+'Current_Holiday Hourly' : 'sum',
+'Current_Holiday Loading' : 'sum',
+'Current_Holiday Salary' : 'sum',
+'Current_Hourly Day' : 'sum',
+'Current_Hourly Night' : 'sum',
+'Current_Hourly Public Holiday' : 'sum',
+'Current_Hourly Saturday' : 'sum',
+'Current_Hourly Sunday' : 'sum',
+'Current_Leave W/o Pay' : 'sum',
+'Current_Net Pay' : 'sum',
+'Current_PAYG Tax' : 'sum',
+'Current_Paid Time Off' : 'sum',
+'Current_Personal Hourly' : 'sum',
+'Current_Personal Salary' : 'sum',
+'Current_Public Holiday Hourly' : 'sum',
+'Current_Public Holiday Not W...' : 'sum',
+'Current_Reimbursement' : 'sum',
+'Current_Salary' : 'sum',
+'Current_Sick Leave Hourly' : 'sum',
+'Current_Sick Leave Salary' : 'sum',
+'Current_Super' : 'sum',
+'Current_Supervisor Allowance' : 'sum'
 
 
 
 
-
-
-        # if col.endswith("Current_") or col.endswith("Qty_"):
-        #     agg_dict[col] = "sum"
-        # elif col.endswith("Rate_"):
-        #     agg_dict[col] = "mean"
-
-# Apply groupby and aggregation only if valid
-if not df_combined.empty and agg_dict:
-    df_grouped = df_combined.groupby("EmpID_key").agg(agg_dict).reset_index()
-else:
-    print("No valid data to aggregate.")
+}).reset_index()
 
 
 
-# grouped_df = df_combined.groupby('EmpID_key').agg({
 
-# 'EmployeeNumber': 'first',
-# 'Employee Name' : 'first',
-# 'Pay Date': 'first',
-# 'Current_Annual Holiday Loadi...' : 'sum',
-# 'Current_Annual Leave' : 'sum',
-# 'Current_BACK PAY' : 'sum',
-# 'Current_Bereavement' : 'sum',
-# 'Current_Extra Payment' : 'sum',
-# 'Current_First Aid Allowance' : 'sum',
-# 'Current_Gross Pay' : 'sum',
-# 'Current_Holiday Hourly' : 'sum',
-# 'Current_Holiday Loading' : 'sum',
-# 'Current_Holiday Salary' : 'sum',
-# 'Current_Hourly Day' : 'sum',
-# 'Current_Hourly Night' : 'sum',
-# 'Current_Hourly Public Holiday' : 'sum',
-# 'Current_Hourly Saturday' : 'sum',
-# 'Current_Hourly Sunday' : 'sum',
-# 'Current_Leave W/o Pay' : 'sum',
-# 'Current_Net Pay' : 'sum',
-# 'Current_PAYG Tax' : 'sum',
-# 'Current_Paid Time Off' : 'sum',
-# 'Current_Personal Hourly' : 'sum',
-# 'Current_Personal Salary' : 'sum',
-# 'Current_Public Holiday Hourly' : 'sum',
-# 'Current_Public Holiday Not W...' : 'sum',
-# 'Current_Reimbursement' : 'sum',
-# 'Current_Salary' : 'sum',
-# 'Current_Sick Leave Hourly' : 'sum',
-# 'Current_Sick Leave Salary' : 'sum',
-# 'Current_Super' : 'sum',
-# 'Current_Supervisor Allowance' : 'sum',
-# 'Qty_Adjustments to Net Pay' : 'sum',
-# 'Qty_Annual Holiday Loadi...' : 'sum',
-# 'Qty_Annual Leave' : 'sum',
-# 'Qty_BACK PAY' : 'sum',
-# 'Qty_Bereavement' : 'sum',
-# 'Qty_Extra Payment' : 'sum',
-# 'Qty_First Aid Allowance' : 'sum',
-# 'Qty_Gross Pay' : 'sum',
-# 'Qty_Holiday Hourly' : 'sum',
-# 'Qty_Holiday Loading' : 'sum',
-# 'Qty_Holiday Salary' : 'sum',
-# 'Qty_Hourly Day' : 'sum',
-# 'Qty_Hourly Night' : 'sum',
-# 'Qty_Hourly Public Holiday' : 'sum',
-# 'Qty_Hourly Saturday' : 'sum',
-# 'Qty_Hourly Sunday' : 'sum',
-# 'Qty_Leave W/o Pay' : 'sum',
-# 'Qty_Net Pay' : 'sum',
-# 'Qty_PAYG Tax' : 'sum',
-# 'Qty_Paid Time Off' : 'sum',
-# 'Qty_Personal Hourly' : 'sum',
-# 'Qty_Personal Salary' : 'sum',
-# 'Qty_Public Holiday Hourly' : 'sum',
-# 'Qty_Public Holiday Not W...' : 'sum',
-# 'Qty_Reimbursement' : 'sum',
-# 'Qty_Salary' : 'sum',
-# 'Qty_Sick Leave Hourly' : 'sum',
-# 'Qty_Sick Leave Salary' : 'sum',
-# 'Qty_Super' : 'sum',
-# 'Qty_Supervisor Allowance' : 'sum',
-# 'Rate_Adjustments to Net Pay' : 'first',
-# 'Rate_Annual Holiday Loadi...' : 'first',
-# 'Rate_Annual Leave' : 'first',
-# 'Rate_BACK PAY' : 'first',
-# 'Rate_Bereavement' : 'first',
-# 'Rate_Extra Payment' : 'first',
-# 'Rate_First Aid Allowance' : 'first',
-# 'Rate_Gross Pay' : 'first',
-# 'Rate_Holiday Hourly' : 'first',
-# 'Rate_Holiday Loading' : 'first',
-# 'Rate_Holiday Salary' : 'first',
-# 'Rate_Hourly Day' : 'first',
-# 'Rate_Hourly Night' : 'first',
-# 'Rate_Hourly Public Holiday' : 'first',
-# 'Rate_Hourly Saturday' : 'first',
-# 'Rate_Hourly Sunday' : 'first',
-# 'Rate_Leave W/o Pay' : 'first',
-# 'Rate_Net Pay' : 'first',
-# 'Rate_PAYG Tax' : 'first',
-# 'Rate_Paid Time Off' : 'first',
-# 'Rate_Personal Hourly' : 'first',
-# 'Rate_Personal Salary' : 'first',
-# 'Rate_Public Holiday Hourly' : 'first',
-# 'Rate_Public Holiday Not W...' : 'first',
-# 'Rate_Reimbursement' : 'first',
-# 'Rate_Salary' : 'first',
-# 'Rate_Sick Leave Hourly' : 'first',
-# 'Rate_Sick Leave Salary' : 'first',
-# 'Rate_Super' : 'first',
-# 'Rate_Supervisor Allowance' : 'first'
+# Define ordered columns in Rate–Qty–Current trios
+ordered_columns = ['EmpID_key', 'EmployeeNumber',
+                   
+'Rate_Adjustments to Net Pay',
+'Qty_Adjustments to Net Pay',
+'Current_Adjustments to Net Pay',
+'Rate_Annual Holiday Loadi...',
+'Qty_Annual Holiday Loadi...',
+'Current_Annual Holiday Loadi...',
+'Rate_Annual Leave',
+'Qty_Annual Leave',
+'Current_Annual Leave',
+'Rate_BACK PAY',
+'Qty_BACK PAY',
+'Current_BACK PAY',
+'Rate_Bereavement',
+'Qty_Bereavement',
+'Current_Bereavement',
+'Rate_Extra Payment',
+'Qty_Extra Payment',
+'Current_Extra Payment',
+'Rate_First Aid Allowance',
+'Qty_First Aid Allowance',
+'Current_First Aid Allowance',
+'Rate_Gross Pay',
+'Qty_Gross Pay',
+'Current_Gross Pay',
+'Rate_Holiday Hourly',
+'Qty_Holiday Hourly',
+'Current_Holiday Hourly',
+'Rate_Holiday Loading',
+'Qty_Holiday Loading',
+'Current_Holiday Loading',
+'Rate_Holiday Salary',
+'Qty_Holiday Salary',
+'Current_Holiday Salary',
+'Rate_Hourly Day',
+'Qty_Hourly Day',
+'Current_Hourly Day',
+'Rate_Hourly Night',
+'Qty_Hourly Night',
+'Current_Hourly Night',
+'Rate_Hourly Public Holiday',
+'Qty_Hourly Public Holiday',
+'Current_Hourly Public Holiday',
+'Rate_Hourly Saturday',
+'Qty_Hourly Saturday',
+'Current_Hourly Saturday',
+'Rate_Hourly Sunday',
+'Qty_Hourly Sunday',
+'Current_Hourly Sunday',
+'Rate_Leave W/o Pay',
+'Qty_Leave W/o Pay',
+'Current_Leave W/o Pay',
+'Rate_Net Pay',
+'Qty_Net Pay',
+'Current_Net Pay',
+'Rate_PAYG Tax',
+'Qty_PAYG Tax',
+'Current_PAYG Tax',
+'Rate_Paid Time Off',
+'Qty_Paid Time Off',
+'Current_Paid Time Off',
+'Rate_Personal Hourly',
+'Qty_Personal Hourly',
+'Current_Personal Hourly',
+'Rate_Personal Salary',
+'Qty_Personal Salary',
+'Current_Personal Salary',
+'Rate_Public Holiday Hourly',
+'Qty_Public Holiday Hourly',
+'Current_Public Holiday Hourly',
+'Rate_Public Holiday Not W...',
+'Qty_Public Holiday Not W...',
+'Current_Public Holiday Not W...',
+'Rate_Reimbursement',
+'Qty_Reimbursement',
+'Current_Reimbursement',
+'Rate_Salary',
+'Qty_Salary',
+'Current_Salary',
+'Rate_Sick Leave Hourly',
+'Qty_Sick Leave Hourly',
+'Current_Sick Leave Hourly',
+'Rate_Sick Leave Salary',
+'Qty_Sick Leave Salary',
+'Current_Sick Leave Salary',
+'Rate_Super',
+'Qty_Super',
+'Current_Super',
+'Rate_Supervisor Allowance',
+'Qty_Supervisor Allowance',
+'Current_Supervisor Allowance'
 
 
-# }).reset_index()
 
+
+ 
+]
+
+# Reorder columns
+grouped_df = grouped_df[ordered_columns]
+
+# Drop columns where *all* values are 0
+def drop_all_zero_columns(df):
+    """Drop columns where all values are 0 or NaN, and print which were dropped."""
+    mask = (df.fillna(0) != 0).any(axis=0)  # True = keep
+    dropped_cols = df.columns[~mask]        # columns where mask = False
+    
+    if len(dropped_cols) > 0:
+        print("Dropped columns:", list(dropped_cols))
+        print("Number Dropped Columns: ", len(dropped_cols))
+    else:
+        print("No columns dropped (none were all zero).")
+    
+    return df.loc[:, mask]
+
+# Usage
+grouped_df = drop_all_zero_columns(grouped_df)
 
 
 
