@@ -137,13 +137,6 @@ timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_n
 
 
 
-# Step 1: Always move forward to the next Wednesday
-timesheet_df['Estimated Pay Date'] = timesheet_df['TS_Start_Date'] + pd.offsets.Week(weekday=2)
-
-# Step 2: Apply Tuesday exceptions
-exceptions = [pd.Timestamp('2024-12-24'), pd.Timestamp('2024-12-31')]
-timesheet_df.loc[timesheet_df['Estimated Pay Date'].isin(exceptions), 'Estimated Pay Date'] -= pd.Timedelta(days=1)
-
 
 
 # Can make these account for Weekend OT and PH once the PH list is complete
@@ -195,10 +188,35 @@ timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'])
 # )
 
 
+
 # 2 Weeks Ending (Sunday)
 timesheet_df['Roster Ending'] = timesheet_df['TS_Start_Date'] + pd.to_timedelta(
     13 - timesheet_df['TS_Start_Date'].dt.weekday, unit='d'
 )
+
+# 2 Weeks Starting (Monday)
+timesheet_df['Roster Starting'] = timesheet_df['Roster Ending'] - pd.Timedelta(days=13)
+
+
+# Week 1 Ending (Sunday of week 1)
+timesheet_df['Week 1 Ending'] = timesheet_df['Roster Starting'] + pd.Timedelta(days=6)
+
+# Week 2 Starting (Monday of week 2)
+timesheet_df['Week 2 Starting'] = timesheet_df['Week 1 Ending'] + pd.Timedelta(days=1)
+
+
+# Step 1: Always move forward to the Wednesday after Week 1 Ending
+timesheet_df['Estimated Pay Date'] = timesheet_df['Week 1 Ending'] + pd.to_timedelta(
+    (2 - timesheet_df['Week 1 Ending'].dt.weekday + 7) % 7, unit="d"
+)
+
+# Step 2: Apply Tuesday exceptions (move back 1 day)
+exceptions = [pd.Timestamp('2024-12-24'), pd.Timestamp('2024-12-31')]
+timesheet_df.loc[timesheet_df['Estimated Pay Date'].isin(exceptions), 'Estimated Pay Date'] -= pd.Timedelta(days=1)
+
+
+
+
 
 timesheet_df['TS_Start_Date'] = timesheet_df['Timesheet Start Time'].dt.date
 
@@ -269,12 +287,15 @@ timesheet_df_weekly_for_Leave['EmpID_PayDay_Key'] = (
 
 
 
-print(timesheet_df_weekly_for_Leave['Estimated Pay Date'].dtype)
-print(timesheet_df_weekly_for_Leave['Estimated Pay Date'].head())
 
 
-timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_PayDay_Key').agg({
-
+timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_key').agg({
+    'EmpID_PayDay_Key' : 'first',
+    'Estimated Pay Date' : 'first',
+    'Roster Ending' : 'first',
+    'Roster Starting' : 'first',
+    'Week 1 Ending' : 'first',
+    'Week 2 Starting' : 'first',
     'Team member' : 'first', 
     # 'Timesheet Start Time', 'Timesheet End Time',
     #    'Timesheet Total Time', 'Shift Start Time', 'Shift End Time',
@@ -289,11 +310,15 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Pay
     #    'DOTW', 'Weekday',
     #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
        'Total Shift Hours' : 'sum',
-       'Roster Ending' : 'last', 
-       'Roster Period Cumulative Total Hours' : 'last',
+       # 'Roster Ending' : 'first', 
+      # 'Roster Period Cumulative Total Hours' : 'first',
 
        #'rolling_1_weeks_hours', 
        'Roster Ending (1w)' : 'last', 
+
+
+
+
        #'rolling_2_weeks_hours',
        #'Roster Ending (2w)' : 'last'
 
@@ -306,6 +331,141 @@ payroll_data = pd.read_excel(payroll_data)
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.merge(payroll_data,
                                    on=['EmpID_PayDay_Key'],
                                    how='left')
+
+
+# Drop unneed columns and keep only Leave related ones
+
+columns_to_drop = [
+    'Rate_BACK PAY',
+'Current_BACK PAY',
+'Rate_Bereavement',
+'Current_Bereavement',
+'Rate_Extra Payment',
+'Qty_Extra Payment',
+'Current_Extra Payment',
+'Rate_First Aid Allowance',
+'Qty_First Aid Allowance',
+'Current_First Aid Allowance',
+'Current_Gross Pay',
+'Rate_Hourly Day',
+'Current_Hourly Day',
+'Rate_Hourly Night',
+'Current_Hourly Night',
+'Rate_Hourly Public Holiday',
+'Current_Hourly Public Holiday',
+'Rate_Hourly Saturday',
+'Current_Hourly Saturday',
+'Rate_Hourly Sunday',
+'Current_Hourly Sunday',
+'Rate_Net Pay',
+'Qty_Net Pay',
+'Current_Net Pay',
+'Rate_PAYG Tax',
+'Qty_PAYG Tax',
+'Current_PAYG Tax',
+'Rate_Personal Hourly',
+'Current_Personal Hourly',
+'Rate_Personal Salary',
+'Current_Personal Salary',
+'Rate_Public Holiday Hourly',
+'Current_Public Holiday Hourly',
+'Rate_Public Holiday Not W...',
+'Current_Public Holiday Not W...',
+'Current_Reimbursement',
+'Rate_Salary',
+'Current_Salary',
+'Rate_Sick Leave Hourly',
+'Current_Sick Leave Hourly',
+'Rate_Sick Leave Salary',
+'Current_Sick Leave Salary',
+'Rate_Super',
+'Qty_Super',
+'Current_Super',
+'Rate_Supervisor Allowance',
+'Qty_Supervisor Allowance',
+'Current_Supervisor Allowance',
+'Rate_Annual Holiday Loadi...',
+'Current_Annual Holiday Loadi...',
+'Rate_Annual Leave',
+'Current_Annual Leave',
+'Rate_Holiday Hourly',
+'Current_Holiday Hourly',
+'Rate_Holiday Loading',
+'Current_Holiday Loading',
+'Rate_Holiday Salary',
+'Current_Holiday Salary'
+
+]
+
+# Annual Leave QTY gets lost in data process due to be null. Create column using Rate and Current columns
+
+timesheet_df_weekly_for_Leave['Current_Annual Leave'] = (
+    timesheet_df_weekly_for_Leave['Current_Annual Leave']
+    .fillna(0)
+    .astype(float)
+)
+
+timesheet_df_weekly_for_Leave['Rate_Annual Leave'] = (
+    timesheet_df_weekly_for_Leave['Rate_Annual Leave']
+    .fillna(0)
+    .astype(float)
+)
+
+timesheet_df_weekly_for_Leave['Rate_Holiday Hourly'] = (
+    timesheet_df_weekly_for_Leave['Rate_Holiday Hourly']
+    .fillna(0)
+    .astype(float)
+)
+
+
+
+timesheet_df_weekly_for_Leave['Current_Holiday Hourly'] = (
+    timesheet_df_weekly_for_Leave['Current_Holiday Hourly']
+    .fillna(0)
+    .astype(float)
+)
+
+
+
+timesheet_df_weekly_for_Leave['Rate_Holiday Salary'] = (
+    timesheet_df_weekly_for_Leave['Rate_Holiday Salary']
+    .fillna(0)
+    .astype(float)
+)
+
+
+timesheet_df_weekly_for_Leave['Current_Holiday Salary'] = (
+    timesheet_df_weekly_for_Leave['Current_Holiday Salary']
+    .fillna(0)
+    .astype(float)
+)
+
+
+# Can pick out leave loading here if we wish
+
+
+timesheet_df_weekly_for_Leave['Qty_Annual_Leave'] = timesheet_df_weekly_for_Leave['Current_Annual Leave'] / timesheet_df_weekly_for_Leave['Rate_Annual Leave']
+
+timesheet_df_weekly_for_Leave['Qty_Holiday Hourly'] = timesheet_df_weekly_for_Leave['Current_Holiday Hourly'] / timesheet_df_weekly_for_Leave['Rate_Holiday Hourly']
+
+timesheet_df_weekly_for_Leave['Qty_Holiday Salary'] = timesheet_df_weekly_for_Leave['Current_Holiday Salary'] / timesheet_df_weekly_for_Leave['Rate_Holiday Salary']
+
+
+ #timesheet_df_weekly_for_Leave['Total Leave Hours'] = timesheet_df_weekly_for_Leave['Qty_Holiday Salary'] + timesheet_df_weekly_for_Leave['Qty_Holiday Hourly'] + timesheet_df_weekly_for_Leave['Qty_Annual_Leave'] 
+
+timesheet_df_weekly_for_Leave['Total Leave Hours'] = (
+    timesheet_df_weekly_for_Leave[['Qty_Holiday Salary', 'Qty_Holiday Hourly', 'Qty_Annual_Leave']]
+    .fillna(0)
+    .sum(axis=1)
+)
+
+# Drop only if the columns exist in your DataFrame
+timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.drop(columns=[col for col in columns_to_drop if col in timesheet_df_weekly_for_Leave.columns])
+
+
+
+
+
 
 
 timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
