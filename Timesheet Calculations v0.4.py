@@ -131,6 +131,21 @@ timesheet_df['DOTW'] = timesheet_df['Timesheet Start Time'].dt.weekday.map(day_m
 timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_name()
 
 
+
+# Estimated pay date column for joining with Payroll data set. All pay dates are on Wednesday except 
+#24/12/2024	and 31/12/2024	which fall on a Tuesday
+
+
+
+# Step 1: Always move forward to the next Wednesday
+timesheet_df['Estimated Pay Date'] = timesheet_df['TS_Start_Date'] + pd.offsets.Week(weekday=2)
+
+# Step 2: Apply Tuesday exceptions
+exceptions = [pd.Timestamp('2024-12-24'), pd.Timestamp('2024-12-31')]
+timesheet_df.loc[timesheet_df['Estimated Pay Date'].isin(exceptions), 'Estimated Pay Date'] -= pd.Timedelta(days=1)
+
+
+
 # Can make these account for Weekend OT and PH once the PH list is complete
 
 timesheet_df['Saturday_Penality_flag'] = np.where(
@@ -236,7 +251,29 @@ print('columns as per line 235')
 print(timesheet_df.columns)
 
 
-timesheet_df_weekly_for_Leave = timesheet_df.groupby('EmpID_key').agg({
+# Create new DF so we can group weekly by EMPLID and Pay Date rather than Roster Ending
+timesheet_df_weekly_for_Leave = timesheet_df
+
+
+# Step 3: Build EmpID_PayDay_Key (EmpID + Pay Date)
+# Ensure it's datetime
+timesheet_df_weekly_for_Leave['Estimated Pay Date'] = pd.to_datetime(
+    timesheet_df_weekly_for_Leave['Estimated Pay Date'], errors='coerce'
+)
+
+# Now safe to format
+timesheet_df_weekly_for_Leave['EmpID_PayDay_Key'] = (
+    timesheet_df_weekly_for_Leave['Employee ID Consolidated'].astype(str) + "_" +
+    timesheet_df_weekly_for_Leave['Estimated Pay Date'].dt.strftime("%Y-%m-%d")
+)
+
+
+
+print(timesheet_df_weekly_for_Leave['Estimated Pay Date'].dtype)
+print(timesheet_df_weekly_for_Leave['Estimated Pay Date'].head())
+
+
+timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_PayDay_Key').agg({
 
     'Team member' : 'first', 
     # 'Timesheet Start Time', 'Timesheet End Time',
@@ -267,7 +304,7 @@ timesheet_df_weekly_for_Leave = timesheet_df.groupby('EmpID_key').agg({
 payroll_data = pd.read_excel(payroll_data)
 
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.merge(payroll_data,
-                                   on=['EmpID_key'],
+                                   on=['EmpID_PayDay_Key'],
                                    how='left')
 
 

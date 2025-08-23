@@ -489,8 +489,8 @@ df.drop(columns=['Current_num'], inplace=True)
 df = df.dropna(subset=['Qty', 'Rate', 'Current'], how='all')
 
 
-# Create 'EmpID_key'
-df['EmpID_key'] = df['EmployeeNumber'].astype(str) + '_' + df['Pay Date'].astype(str)
+# Create 'EmpID_PayDay_Key'
+df['EmpID_PayDay_Key'] = df['EmployeeNumber'].astype(str) + '_' + df['Pay Date'].astype(str)
 
 df.to_csv('Test_line462.csv')
 
@@ -535,8 +535,8 @@ print('line 535')
 print("df_combined columns:", df_combined.columns.tolist())
 
 
-# Create 'EmpID_key'
-df_combined['EmpID_key'] = df_combined['EmployeeNumber'].astype(str) + '_' + df_combined['Pay Date'].astype(str)
+# Create 'EmpID_PayDay_Key'
+df_combined['EmpID_PayDay_Key'] = df_combined['EmployeeNumber'].astype(str) + '_' + df_combined['Pay Date'].astype(str)
 
 #df_combined = df_combined.drop(columns=['Qty', 'Rate', 'Current'])
 
@@ -560,19 +560,19 @@ df.drop(columns=['Earnings and Hours',
 
 # Convert all non-key columns to numeric
 for col in df_combined.columns:
-    if col != "EmpID_key":
+    if col != "EmpID_PayDay_Key":
         df_combined[col] = pd.to_numeric(df_combined[col], errors="coerce")
 
 # # Build aggregation dictionary only for valid columns
 # agg_dict = {}
 # for col in df_combined.columns:
-#     if col == "EmpID_key":
+#     if col == "EmpID_PayDay_Key":
 #         continue
 #     if df_combined[col].notna().any():
 #         if col.startswith("Current_") or col.startswith("Qty_"):
 #           agg_dict[col] = "sum"
 
-grouped_df = df_combined.groupby('EmpID_key').agg({
+grouped_df = df_combined.groupby('EmpID_PayDay_Key').agg({
 'Pay Date' : 'last',
 'EmployeeNumber': 'first',
 'Rate_Adjustments to Net Pay' : 'first',
@@ -677,7 +677,7 @@ grouped_df = df_combined.groupby('EmpID_key').agg({
 
 # Define ordered columns in Rate–Qty–Current trios
 ordered_columns = [
-'EmpID_key', 
+'EmpID_PayDay_Key', 
                    
 'EmployeeNumber', 
 'Pay Date',
