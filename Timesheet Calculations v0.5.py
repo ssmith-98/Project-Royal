@@ -155,6 +155,8 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
 
 
 
+
+
 # Need to add shift count feature per day so that we can calculate the below pay rule: 
 # Broken Shift Minimum 3 Hours	  
 # An employee who works broken shifts is entitled to be paid for at least 3 hours for each period of duty on a broken shift even if the employee works for a shorter time.
@@ -163,17 +165,25 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
 
 
 
-# Step 1: Calculate total shift hours
+# Step 1: Calculate Total Shift Hours Adj
 timesheet_df['Total Shift Hours'] = timesheet_df['Night Shift Hours'] + timesheet_df['Day Shift Hours']
+
+
+
+# Meal Breaks deduct half an hour if shift is over 5 hours
+timesheet_df['Meal_Break_Deduction'] = np.where(
+    timesheet_df['Total Shift Hours'] > 5,
+    0.5,
+    0
+)
+
+
+timesheet_df['Total Shift Hours Adj'] = timesheet_df['Total Shift Hours'] - timesheet_df['Meal_Break_Deduction']
 
 # Step 2: Ensure TS_Start_Date is datetime
 timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'])
 
 
-
-
-import numpy as np
-import pandas as pd
 
 # Ensure datetime
 timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'], errors='coerce')
@@ -234,7 +244,7 @@ timesheet_df.loc[timesheet_df['Estimated Pay Date'].isin(exceptions), 'Estimated
 
 
 # # Step 4: Group by Team Member and Roster Ending, then sum total shift hours 
-# timesheet_df['Roster Period Total Hours'] = timesheet_df.groupby( ['Employee ID Consolidated', 'Roster Ending'] )['Total Shift Hours'].transform('sum')
+# timesheet_df['Roster Period Total Hours'] = timesheet_df.groupby( ['Employee ID Consolidated', 'Roster Ending'] )['Total Shift Hours Adj'].transform('sum')
 
 print('duplicates check')
 
@@ -249,7 +259,7 @@ timesheet_df = timesheet_df.drop_duplicates()
 # 2) Weekly total hours per employee-week (same value on each row of that week)
 timesheet_df['Weekly Total Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Week Ending']
-)['Total Shift Hours'].transform('sum')
+)['Total Shift Hours Adj'].transform('sum')
 
 # 3) Weekly cumulative hours per employee-week (sorted within the week)
 timesheet_df = timesheet_df.sort_values(
@@ -257,7 +267,7 @@ timesheet_df = timesheet_df.sort_values(
 )
 timesheet_df['Weekly Cumulative Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Week Ending']
-)['Total Shift Hours'].cumsum()
+)['Total Shift Hours Adj'].cumsum()
 
 
 
@@ -265,7 +275,7 @@ timesheet_df['Weekly Cumulative Hours'] = timesheet_df.groupby(
 # 4) Fortnight (roster) total per employee (if you need it)
 timesheet_df['Roster Period Total Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Roster Ending']
-)['Total Shift Hours'].transform('sum')
+)['Total Shift Hours Adj'].transform('sum')
 
 
 
@@ -335,7 +345,7 @@ timesheet_df['Weekly OT Flag'] = np.where(
 
 # Condition: OT flag is Y and cumulative hours *before* this shift exceed 38
 condition1 = (timesheet_df['Weekly OT Flag'] == 'Y') & \
-             ((timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours']) > Max_Ord_Hrs)
+             ((timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj']) > Max_Ord_Hrs)
 
 # Condition: OT flag is Y (used in second np.where)
 condition2 = timesheet_df['Weekly OT Flag'] == 'Y'
@@ -343,12 +353,12 @@ condition2 = timesheet_df['Weekly OT Flag'] == 'Y'
 timesheet_df['Weekly OT Hours'] = np.where(
     condition1,
     # All shift hours are OT if we've already exceeded 38 before this shift
-    timesheet_df['Total Shift Hours'],
+    timesheet_df['Total Shift Hours Adj'],
     np.where(
         condition2,
         # Part of this shift may push us over 38, so subtract the remaining non-OT hours
-        timesheet_df['Total Shift Hours'] - (
-            Max_Ord_Hrs - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours'])
+        timesheet_df['Total Shift Hours Adj'] - (
+            Max_Ord_Hrs - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj'])
         ),
         0
     )
@@ -372,8 +382,8 @@ mask_first_2_ot = (
 
 # Amount of shift hours that fall in the 38–40 window
 first_2_hours_calc = np.minimum(
-    timesheet_df['Total Shift Hours'],
-    First_2_Hrs_OT_Cutoff - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours'])
+    timesheet_df['Total Shift Hours Adj'],
+    First_2_Hrs_OT_Cutoff - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj'])
 )
 
 
@@ -495,7 +505,7 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
        'Night Shift Hours' : 'sum', 
     #    'DOTW', 'Weekday',
     #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
-       'Total Shift Hours' : 'sum',
+       'Total Shift Hours Adj' : 'sum',
        # 'Roster Ending' : 'first', 
       # 'Roster Period Total Hours' : 'first',
 
@@ -654,12 +664,12 @@ def calculate_effective_hours(df):
     
     # Step 1: Adjust leave if payout condition triggered
     df['Effective_Leave'] = np.where(
-        (df['Total Shift Hours'] > 38) & (df['Total Leave Hours'] > 0),
+        (df['Total Shift Hours Adj'] > 38) & (df['Total Leave Hours'] > 0),
         0,
         df['Total Leave Hours']
     )
     
-    df['Effective_Total'] = df['Total Shift Hours'] + df['Effective_Leave']
+    df['Effective_Total'] = df['Total Shift Hours Adj'] + df['Effective_Leave']
     return df
 
 timesheet_df_weekly_for_Leave['Fortnight_Key'] = (
@@ -687,10 +697,10 @@ def calculate_overtime(group):
     group = group.sort_values('Week Number')
     ot = []
     for _, row in group.iterrows():
-        if (row['Week Number'] == 2) and (row['Total Shift Hours'] == 0) and (row['Effective_Leave'] > 0):
+        if (row['Week Number'] == 2) and (row['Total Shift Hours Adj'] == 0) and (row['Effective_Leave'] > 0):
             ot_hours = 0
         else:
-            ot_hours = min(row['Total Shift Hours'], excess)
+            ot_hours = min(row['Total Shift Hours Adj'], excess)
             excess -= ot_hours
 
         ot.append(ot_hours)
