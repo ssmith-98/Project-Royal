@@ -273,6 +273,13 @@ df = df.merge(
 
 df['EmployeeNumber'] = df['Employee ID Consolidated']
 
+
+# Column6 == Employer Contributions and Columm
+
+
+
+
+
 df.to_csv('line272.csv')
 print(df.columns)
 
@@ -782,6 +789,36 @@ ordered_columns = [
 # Reorder columns
 grouped_df = grouped_df[ordered_columns]
 
+# def drop_all_zero_columns(df, always_keep=None):
+#     """
+#     Drop columns where all values are 0 or NaN, except those in always_keep.
+#     Prints which columns were dropped.
+#     """
+#     if always_keep is None:
+#         always_keep = []
+
+#     # Create a mask for columns to keep (not all zero or NaN)
+#     mask = (df.fillna(0) != 0).any(axis=0)
+
+#     # Ensure always_keep columns are retained
+#     for col in always_keep:
+#         if col in df.columns:
+#             mask[col] = True
+
+#     dropped_cols = df.columns[~mask]
+
+#     if len(dropped_cols) > 0:
+#         print("Dropped columns:", list(dropped_cols))
+#         print("Number of Dropped Columns:", len(dropped_cols))
+#     else:
+#         print("No columns dropped (none were all zero).")
+
+#     return df.loc[:, mask]
+
+# grouped_df = drop_all_zero_columns(grouped_df, always_keep=["Pay Date"])
+
+
+
 def drop_all_zero_columns(df, always_keep=None):
     """
     Drop columns where all values are 0 or NaN, except those in always_keep.
@@ -808,17 +845,80 @@ def drop_all_zero_columns(df, always_keep=None):
 
     return df.loc[:, mask]
 
+# Example usage
 grouped_df = drop_all_zero_columns(grouped_df, always_keep=["Pay Date"])
+
 
 
 # Usage
 grouped_df = drop_all_zero_columns(grouped_df)
 
+grouped_df['Qty_Holiday Hourly'] = grouped_df['Current_Holiday Hourly'] / grouped_df['Rate_Holiday Hourly']
+grouped_df['Qty_Holiday Salary'] = grouped_df['Current_Holiday Salary'] / grouped_df['Rate_Holiday Salary']
+grouped_df['Qty_Hourly Day'] = grouped_df['Current_Hourly Day'] / grouped_df['Rate_Hourly Day']
+grouped_df['Qty_Hourly Night'] = grouped_df['Current_Hourly Night'] / grouped_df['Rate_Hourly Night']
+grouped_df['Qty_Hourly Public Holiday'] = grouped_df['Current_Public Holiday Hourly'] / grouped_df['Rate_Public Holiday Hourly']
+grouped_df['Qty_Hourly Saturday'] = grouped_df['Current_Hourly Saturday'] / grouped_df['Rate_Hourly Saturday']
+grouped_df['Qty_Hourly Sunday'] = grouped_df['Current_Hourly Sunday'] / grouped_df['Rate_Hourly Sunday']
 
+grouped_df['Qty_Salary'] = grouped_df['Current_Salary'] / grouped_df['Rate_Salary']
+grouped_df['Qty_Sick Leave Hourly']  = grouped_df['Current_Sick Leave Hourly'] / grouped_df['Rate_Sick Leave Hourly']
+grouped_df['Qty_Sick Leave Salary'] = grouped_df['Current_Sick Leave Salary'] / grouped_df['Rate_Sick Leave Salary']
+grouped_df['Qty_Personal Hourly'] = grouped_df['Current_Personal Hourly'] / grouped_df['Rate_Personal Hourly']
+grouped_df['Qty_Personal Salary'] = grouped_df['Current_Personal Salary'] / grouped_df['Rate_Personal Salary']
+
+grouped_df['Qty_Public Holiday Hourly'] = grouped_df['Current_Holiday Hourly'] / grouped_df['Rate_Holiday Hourly']
+
+grouped_df['Qty_Public Holiday Not W...'] = grouped_df['Current_Public Holiday Not W...'] / grouped_df['Rate_Public Holiday Not W...']
+grouped_df['Qty_Annual Leave'] = grouped_df['Current_Annual Leave'] / grouped_df['Rate_Annual Leave']
+
+print('Final grouped_df columns:')
+print(grouped_df.columns)
+
+
+
+
+# Keep only Qty columns and key identifiers
+columns_to_keep = [
+    'EmpID_PayDay_Key', 
+                   
+'EmployeeNumber', 
+#'Pay Date',
+#    'Qty_Adjustments to Net Pay',
+'Qty_Annual Holiday Loadi...',
+#'Qty_Annual Leave',
+#'Qty_BACK PAY',
+#'Qty_Bereavement',
+'Qty_Extra Payment',
+'Qty_First Aid Allowance',
+#'Qty_Gross Pay',
+'Qty_Holiday Hourly',
+'Qty_Holiday Loading',
+'Qty_Holiday Salary',
+'Qty_Hourly Day',
+'Qty_Hourly Night',
+'Qty_Hourly Public Holiday',
+'Qty_Hourly Saturday',
+'Qty_Hourly Sunday',
+#'Qty_Leave W/o Pay',
+#'Qty_Paid Time Off',
+'Qty_Personal Hourly',
+'Qty_Personal Salary',
+'Qty_Public Holiday Hourly',
+'Qty_Public Holiday Not W...',
+#'Qty_Reimbursement',
+'Qty_Salary',
+'Qty_Sick Leave Hourly',
+'Qty_Sick Leave Salary',
+#'Qty_Super',
+'Qty_Supervisor Allowance',
+
+]
+
+grouped_df = grouped_df[columns_to_keep]
 
 # ------------- OUTPUT -------------
 # Save to Excel (change OUTPUT_PATH if you want CSV)
-
 
 grouped_df.to_excel(OUTPUT_PATH, index=False)
 

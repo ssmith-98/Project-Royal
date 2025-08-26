@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
-from datetime import datetime, time, timedelta
+
+from datetime import datetime, date, time, timedelta
+
 
 # Load and clean timesheet data
 def load_and_clean_timesheet(file_path):
@@ -102,7 +104,32 @@ timesheet_df['Difference in Hours'] = calculate_time_difference_in_hours(
     timesheet_df['TS_Start_Date'],
     timesheet_df['TS_TimeOnly_Start'],
     timesheet_df['TS_TimeOnly_End']
+
 )
+
+
+
+def calculate_shift_hours(start, end, shift_start, shift_end):
+    # Handle overnight shifts (e.g., 18:00 to 06:00 next day)
+    if shift_end <= shift_start:
+        shift_end = (datetime.combine(date.min, shift_end) + timedelta(days=1)).time()
+
+    start_dt = datetime.combine(date.min, start)
+    end_dt = datetime.combine(date.min, end)
+    shift_start_dt = datetime.combine(date.min, shift_start)
+    shift_end_dt = datetime.combine(date.min, shift_end)
+
+    # Handle crossing midnight
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+
+    # Calculate overlap
+    overlap_start = max(start_dt, shift_start_dt)
+    overlap_end = min(end_dt, shift_end_dt)
+    overlap = max((overlap_end - overlap_start).total_seconds(), 0)
+
+    return round(overlap / 3600.0, 2)  # return float hours, 2 decimals
+
 
 # Calculate night and day shift hours
 
@@ -110,9 +137,6 @@ timesheet_df['Day Shift Hours'] = timesheet_df.apply(
     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0)),
     axis=1
 )
-
-
-
 
 timesheet_df['Night Shift Hours'] = timesheet_df.apply(
     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0)),
