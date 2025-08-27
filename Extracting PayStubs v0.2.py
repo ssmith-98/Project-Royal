@@ -853,6 +853,56 @@ grouped_df = drop_all_zero_columns(grouped_df, always_keep=["Pay Date"])
 # Usage
 grouped_df = drop_all_zero_columns(grouped_df)
 
+
+
+
+grouped_df['Current_Annual Leave'] = (
+    grouped_df['Current_Annual Leave']
+    .fillna(0)
+    .astype(float)
+)
+
+grouped_df['Rate_Annual Leave'] = (
+    grouped_df['Rate_Annual Leave']
+    .fillna(0)
+    .astype(float)
+)
+
+grouped_df['Rate_Holiday Hourly'] = (
+    grouped_df['Rate_Holiday Hourly']
+    .fillna(0)
+    .astype(float)
+)
+
+
+
+grouped_df['Current_Holiday Hourly'] = (
+    grouped_df['Current_Holiday Hourly']
+    .fillna(0)
+    .astype(float)
+)
+
+
+
+grouped_df['Rate_Holiday Salary'] = (
+    grouped_df['Rate_Holiday Salary']
+    .fillna(0)
+    .astype(float)
+)
+
+
+grouped_df['Current_Holiday Salary'] = (
+    grouped_df['Current_Holiday Salary']
+    .fillna(0)
+    .astype(float)
+)
+
+
+
+
+
+
+
 grouped_df['Qty_Holiday Hourly'] = grouped_df['Current_Holiday Hourly'] / grouped_df['Rate_Holiday Hourly']
 grouped_df['Qty_Holiday Salary'] = grouped_df['Current_Holiday Salary'] / grouped_df['Rate_Holiday Salary']
 grouped_df['Qty_Hourly Day'] = grouped_df['Current_Hourly Day'] / grouped_df['Rate_Hourly Day']
@@ -883,37 +933,98 @@ columns_to_keep = [
     'EmpID_PayDay_Key', 
                    
 'EmployeeNumber', 
-#'Pay Date',
-#    'Qty_Adjustments to Net Pay',
+
 'Qty_Annual Holiday Loadi...',
-#'Qty_Annual Leave',
-#'Qty_BACK PAY',
-#'Qty_Bereavement',
-'Qty_Extra Payment',
-'Qty_First Aid Allowance',
-#'Qty_Gross Pay',
+'Rate_Annual Holiday Loadi...',
+'Current_Annual Holiday Loadi...',
+'Qty_Annual Leave',
+'Rate_Annual Leave',
+'Current_Annual Leave',
 'Qty_Holiday Hourly',
+'Rate_Holiday Hourly',
+'Current_Holiday Hourly',
 'Qty_Holiday Loading',
+'Rate_Holiday Loading',
+'Current_Holiday Loading',
 'Qty_Holiday Salary',
+'Rate_Holiday Salary',
+'Current_Holiday Salary',
 'Qty_Hourly Day',
+'Rate_Hourly Day',
+'Current_Hourly Day',
 'Qty_Hourly Night',
+'Rate_Hourly Night',
+'Current_Hourly Night',
 'Qty_Hourly Public Holiday',
+'Rate_Hourly Public Holiday',
+'Current_Hourly Public Holiday',
 'Qty_Hourly Saturday',
+'Rate_Hourly Saturday',
+'Current_Hourly Saturday',
 'Qty_Hourly Sunday',
-#'Qty_Leave W/o Pay',
-#'Qty_Paid Time Off',
+'Rate_Hourly Sunday',
+'Current_Hourly Sunday',
 'Qty_Personal Hourly',
+'Rate_Personal Hourly',
+'Current_Personal Hourly',
 'Qty_Personal Salary',
+'Rate_Personal Salary',
+'Current_Personal Salary',
 'Qty_Public Holiday Hourly',
+'Rate_Public Holiday Hourly',
+'Current_Public Holiday Hourly',
 'Qty_Public Holiday Not W...',
-#'Qty_Reimbursement',
+'Rate_Public Holiday Not W...',
+'Current_Public Holiday Not W...',
 'Qty_Salary',
+'Rate_Salary',
+'Current_Salary',
 'Qty_Sick Leave Hourly',
+'Rate_Sick Leave Hourly',
+'Current_Sick Leave Hourly',
 'Qty_Sick Leave Salary',
-#'Qty_Super',
-'Qty_Supervisor Allowance',
+'Rate_Sick Leave Salary',
+'Current_Sick Leave Salary'
 
 ]
+
+
+
+
+#'Pay Date',
+# #    'Qty_Adjustments to Net Pay',
+# 'Qty_Annual Holiday Loadi...',
+# 'Qty_Annual Leave',
+# #'Qty_BACK PAY',
+# #'Qty_Bereavement',
+# 'Qty_Extra Payment',
+# 'Qty_First Aid Allowance',
+# #'Qty_Gross Pay',
+# 'Qty_Holiday Hourly',
+# 'Qty_Holiday Loading',
+# 'Qty_Holiday Salary',
+# 'Qty_Hourly Day',
+# 'Qty_Hourly Night',
+# 'Qty_Hourly Public Holiday',
+# 'Qty_Hourly Saturday',
+# 'Qty_Hourly Sunday',
+# #'Qty_Leave W/o Pay',
+# #'Qty_Paid Time Off',
+# 'Qty_Personal Hourly',
+# 'Qty_Personal Salary',
+# 'Qty_Public Holiday Hourly',
+# 'Qty_Public Holiday Not W...',
+# #'Qty_Reimbursement',
+# 'Qty_Salary',
+# 'Qty_Sick Leave Hourly',
+# 'Qty_Sick Leave Salary',
+# #'Qty_Super',
+# 'Qty_Supervisor Allowance',
+
+# ]
+
+
+grouped_df.replace([np.inf, -np.inf], np.nan, inplace=True)  # Replace with NaN
 
 grouped_df = grouped_df[columns_to_keep]
 

@@ -4,6 +4,11 @@ import numpy as np
 from datetime import datetime, date, time, timedelta
 
 
+# Ordinary hours and overtime cutoffs
+
+Max_Ord_Hrs = 76
+First_2_Hrs_OT_Cutoff = 78
+
 # Load and clean timesheet data
 def load_and_clean_timesheet(file_path):
     df = pd.read_excel(file_path, sheet_name='Timesheet details')
@@ -361,91 +366,6 @@ timesheet_df['Daily_Ordinary_Hours'] = 7.6
 
 
 
-# 1 week roster so Weekly Ordinary Hours is 38 hours --
-
-
-Max_Ord_Hrs = 76
-First_2_Hrs_OT_Cutoff = 78
-
-timesheet_df['Weekly OT Flag'] = np.where(
-    timesheet_df['Roster Period Total Hours'] > Max_Ord_Hrs,
-    'Y',
-    'N'
-)
-
-# Condition: OT flag is Y and cumulative hours *before* this shift exceed 38
-condition1 = (timesheet_df['Weekly OT Flag'] == 'Y') & \
-             ((timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj']) > Max_Ord_Hrs)
-
-# Condition: OT flag is Y (used in second np.where)
-condition2 = timesheet_df['Weekly OT Flag'] == 'Y'
-
-timesheet_df['Weekly OT Hours'] = np.where(
-    condition1,
-    # All shift hours are OT if we've already exceeded 38 before this shift
-    timesheet_df['Total Shift Hours Adj'],
-    np.where(
-        condition2,
-        # Part of this shift may push us over 38, so subtract the remaining non-OT hours
-        timesheet_df['Total Shift Hours Adj'] - (
-            Max_Ord_Hrs - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj'])
-        ),
-        0
-    )
-)
-
-# Ensure OT hours don't go negative
-timesheet_df['Weekly OT Hours'] = timesheet_df['Weekly OT Hours'].clip(lower=0)
-
-
-
-
-# First two hours will be on the weekly OT hours basis until told otherwise by CU or VU - 14.08.25
-# Condition: weekly cumulative hours > 38 but <= 40
-
-
-
-mask_first_2_ot = (
-    (timesheet_df['Roster Period Total Hours'] > Max_Ord_Hrs) &
-    (timesheet_df['Roster Period Total Hours'] <= First_2_Hrs_OT_Cutoff)
-)
-
-# Amount of shift hours that fall in the 38–40 window
-first_2_hours_calc = np.minimum(
-    timesheet_df['Total Shift Hours Adj'],
-    First_2_Hrs_OT_Cutoff - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj'])
-)
-
-
-
-# Step 1 – calculate candidate first 2 hours
-timesheet_df['OT First 2 Hours'] = np.where(
-    (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Sunday_Penality_flag'] == 'N'),
-    np.clip(timesheet_df['Weekly OT Hours'], 0, 2),
-    0
-)
-
-# Step 2 – create pre-shift cumulative hours
-timesheet_df['pre_shift_cumulative'] = (
-    timesheet_df['Roster Period Total Hours'] - timesheet_df['Weekly OT Hours']
-)
-
-# Step 3 – zero out if cumulative already ≥ 40 before the shift
-timesheet_df.loc[timesheet_df['pre_shift_cumulative'] >= First_2_Hrs_OT_Cutoff, 'OT First 2 Hours'] = 0
-
-# Step 4 – ensure only first occurrence in week gets the "first 2 hours"
-# Assuming you have a 'Week' column or can group by year-week
-timesheet_df['OT First 2 Hours'] = (
-    timesheet_df
-    .groupby(['Team member', 'Roster Ending'])['OT First 2 Hours']
-    .transform(lambda x: x.where(x.cumsum() <= 2, 0))
-)
-
-timesheet_df['OT Post 2 Hours'] = (
-    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
-
-)
-
 timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member'])
 
 
@@ -564,54 +484,60 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.merge(payroll_data
 # Drop unneed columns and keep only Leave related ones
 
 columns_to_drop = [
-    'Rate_BACK PAY',
-'Current_BACK PAY',
-'Rate_Bereavement',
-'Current_Bereavement',
-'Rate_Extra Payment',
-'Qty_Extra Payment',
-'Current_Extra Payment',
-'Rate_First Aid Allowance',
-'Qty_First Aid Allowance',
-'Current_First Aid Allowance',
-'Current_Gross Pay',
-'Rate_Hourly Day',
-'Current_Hourly Day',
-'Rate_Hourly Night',
-'Current_Hourly Night',
-'Rate_Hourly Public Holiday',
-'Current_Hourly Public Holiday',
-'Rate_Hourly Saturday',
-'Current_Hourly Saturday',
-'Rate_Hourly Sunday',
-'Current_Hourly Sunday',
+
+# PAY RELATED COLUMNS TO Keep
+
+#     'Rate_BACK PAY',
+# 'Current_BACK PAY',
+# 'Rate_Bereavement',
+# 'Current_Bereavement',
+# 'Rate_Extra Payment',
+# 'Qty_Extra Payment',
+# 'Current_Extra Payment',
+# 'Rate_First Aid Allowance',
+# 'Qty_First Aid Allowance',
+# 'Current_First Aid Allowance',
+# 'Current_Gross Pay',
+# 'Rate_Hourly Day',
+# 'Current_Hourly Day',
+# 'Rate_Hourly Night',
+# 'Current_Hourly Night',
+# 'Rate_Hourly Public Holiday',
+# 'Current_Hourly Public Holiday',
+# 'Rate_Hourly Saturday',
+# 'Current_Hourly Saturday',
+#'Rate_Hourly Sunday',
+#'Current_Hourly Sunday',
+#'Rate_Personal Hourly',
+#'Current_Personal Hourly',
+#'Rate_Personal Salary',
+#'Current_Personal Salary',
+# 'Rate_Public Holiday Hourly',
+# 'Current_Public Holiday Hourly',
+# 'Rate_Public Holiday Not W...',
+# 'Current_Public Holiday Not W...',
+#'Rate_Salary',
+#'Current_Salary',
+
+
+# PAY RELATED COLUMNS TO DROP
 'Rate_Net Pay',
 'Qty_Net Pay',
 'Current_Net Pay',
 'Rate_PAYG Tax',
 'Qty_PAYG Tax',
 'Current_PAYG Tax',
-'Rate_Personal Hourly',
-'Current_Personal Hourly',
-'Rate_Personal Salary',
-'Current_Personal Salary',
-'Rate_Public Holiday Hourly',
-'Current_Public Holiday Hourly',
-'Rate_Public Holiday Not W...',
-'Current_Public Holiday Not W...',
+
+
 'Current_Reimbursement',
-'Rate_Salary',
-'Current_Salary',
-'Rate_Sick Leave Hourly',
-'Current_Sick Leave Hourly',
-'Rate_Sick Leave Salary',
-'Current_Sick Leave Salary',
 'Rate_Super',
 'Qty_Super',
 'Current_Super',
 'Rate_Supervisor Allowance',
 'Qty_Supervisor Allowance',
 'Current_Supervisor Allowance',
+
+# LEAVE RELATED COLUMNS TO DROP
 'Rate_Annual Holiday Loadi...',
 'Current_Annual Holiday Loadi...',
 'Rate_Annual Leave',
@@ -621,7 +547,11 @@ columns_to_drop = [
 'Rate_Holiday Loading',
 'Current_Holiday Loading',
 'Rate_Holiday Salary',
-'Current_Holiday Salary'
+'Current_Holiday Salary',
+'Rate_Sick Leave Hourly',
+'Current_Sick Leave Hourly',
+'Rate_Sick Leave Salary',
+'Current_Sick Leave Salary',
 
 ]
 
@@ -689,12 +619,20 @@ timesheet_df_weekly_for_Leave['Total Leave Hours'] = (
     .sum(axis=1)
 )
 
+timesheet_df_weekly_for_Leave['Fortnight_Key'] = (
+    timesheet_df_weekly_for_Leave['Employee ID Consolidated'].astype(str) + '_' +
+    timesheet_df_weekly_for_Leave['Roster Ending'].astype(str)
+)
+
+
 def calculate_effective_hours(df):
     df = df.copy()
     
     # Step 1: Adjust leave if payout condition triggered
     df['Effective_Leave'] = np.where(
-        (df['Total Shift Hours Adj'] > 38) & (df['Total Leave Hours'] > 0),
+        (df['Total Leave Hours'] > 38) & (df['Total Shift Hours Adj'] > 0),
+
+        #(df['Total Shift Hours Adj'] > 38) & (df['Total Leave Hours'] > 0),
         0,
         df['Total Leave Hours']
     )
@@ -702,10 +640,7 @@ def calculate_effective_hours(df):
     df['Effective_Total'] = df['Total Shift Hours Adj'] + df['Effective_Leave']
     return df
 
-timesheet_df_weekly_for_Leave['Fortnight_Key'] = (
-    timesheet_df_weekly_for_Leave['EmployeeNumber'].astype(str) + '_' +
-    timesheet_df_weekly_for_Leave['Roster Ending'].astype(str)
-)
+
 
 
 
@@ -754,18 +689,119 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby(['Fortnigh
 
 
 
-# columns before drop
-print('Columns before drop:')
-print(timesheet_df_weekly_for_Leave.columns)
 
 
 # Drop only if the columns exist in your DataFrame
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.drop(columns=[col for col in columns_to_drop if col in timesheet_df_weekly_for_Leave.columns])
-# columns after drop
-print('Columns after drop:')
-print(timesheet_df_weekly_for_Leave.columns)
 
 
+
+# 1 week roster so Weekly Ordinary Hours is 38 hours --
+
+
+
+# timesheet_df['Weekly OT Flag'] = np.where(
+#     timesheet_df['Roster Period Total Hours'] > Max_Ord_Hrs,
+#     'Y',
+#     'N'
+# )
+
+# # Condition: OT flag is Y and cumulative hours *before* this shift exceed 38
+# condition1 = (timesheet_df_weekly_for_Leave['Overtime_Hours'] > 0) & \
+#              ((timesheet_df_weekly_for_Leave['Roster Period Total Hours'] - timesheet_df_weekly_for_Leave['Total Shift Hours Adj']) > Max_Ord_Hrs)
+
+# # Condition: OT flag is Y (used in second np.where)
+# condition2 = timesheet_df['Weekly OT Flag'] == 'Y'
+
+# timesheet_df['Weekly OT Hours'] = np.where(
+#     condition1,
+#     # All shift hours are OT if we've already exceeded 38 before this shift
+#     timesheet_df['Total Shift Hours Adj'],
+#     np.where(
+#         condition2,
+#         # Part of this shift may push us over 38, so subtract the remaining non-OT hours
+#         timesheet_df['Total Shift Hours Adj'] - (
+#             Max_Ord_Hrs - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total Shift Hours Adj'])
+#         ),
+#         0
+#     )
+# )
+
+# # Ensure OT hours don't go negative
+# timesheet_df['Weekly OT Hours'] = timesheet_df['Weekly OT Hours'].clip(lower=0)
+
+
+
+
+# First two hours will be on the weekly OT hours basis until told otherwise by CU or VU - 14.08.25
+# Condition: weekly cumulative hours > 38 but <= 40
+
+
+
+mask_first_2_ot = (
+    (timesheet_df_weekly_for_Leave['Fortnight_Total'] > Max_Ord_Hrs) &
+    (timesheet_df_weekly_for_Leave['Fortnight_Total'] <= First_2_Hrs_OT_Cutoff)
+)
+
+# Amount of shift hours that fall in the 38–40 window
+first_2_hours_calc = np.minimum(
+    timesheet_df_weekly_for_Leave['Total Shift Hours Adj'],
+    First_2_Hrs_OT_Cutoff - (timesheet_df_weekly_for_Leave['Fortnight_Total'] - timesheet_df_weekly_for_Leave['Total Shift Hours Adj'])
+)
+
+
+# 27/08/25  -  due to including leave in the OT calc we can't accurately determine whether the first 2 hour of overtime occured on a Sunday or not
+# so we will exclude the Sunday penalty flag from the first 2 hours calc
+# this may need to be revisited if CU or VU advise otherwise
+
+
+# Step 1 – calculate candidate first 2 hours
+
+timesheet_df_weekly_for_Leave['OT First 2 Hours'] = np.where(
+    mask_first_2_ot,
+    timesheet_df_weekly_for_Leave['Overtime_Hours'],
+    np.where(timesheet_df_weekly_for_Leave['Overtime_Hours'] > 2, 2, 0
+    )
+)
+
+# timesheet_df_weekly_for_Leave['OT First 2 Hours'] = np.where(
+#     (timesheet_df_weekly_for_Leave['Overtime_Hours'] > 0) & 
+#     (timesheet_df_weekly_for_Leave['Overtime_Hours'] < 2),
+#     timesheet_df_weekly_for_Leave['Overtime_Hours'],
+#     np.where(
+#         mask_first_2_ot,
+#         first_2_hours_calc,
+#         0
+#     )
+# )
+
+
+timesheet_df_weekly_for_Leave['OT Post 2 Hours'] = (
+     timesheet_df_weekly_for_Leave['Overtime_Hours'] - timesheet_df_weekly_for_Leave['OT First 2 Hours']
+
+
+)
+
+# # Step 2 – create pre-shift cumulative hours
+# timesheet_df['pre_shift_cumulative'] = (
+#     timesheet_df['Roster Period Total Hours'] - timesheet_df['Weekly OT Hours']
+# )
+
+# # Step 3 – zero out if cumulative already ≥ 40 before the shift
+# timesheet_df.loc[timesheet_df['pre_shift_cumulative'] >= First_2_Hrs_OT_Cutoff, 'OT First 2 Hours'] = 0
+
+# # Step 4 – ensure only first occurrence in week gets the "first 2 hours"
+# # Assuming you have a 'Week' column or can group by year-week
+# timesheet_df['OT First 2 Hours'] = (
+#     timesheet_df
+#     .groupby(['Team member', 'Roster Ending'])['OT First 2 Hours']
+#     .transform(lambda x: x.where(x.cumsum() <= 2, 0))
+# )
+
+# timesheet_df['OT Post 2 Hours'] = (
+#     timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
+
+# )
 
 
 timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
