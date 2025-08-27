@@ -142,17 +142,46 @@ timesheet_df['Difference in Hours'] = calculate_time_difference_in_hours(
 
 # Calculate night and day shift hours
 
-timesheet_df['Day Shift Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0)),
-    axis=1
-)
+# timesheet_df['Day Shift Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0)),
+#     axis=1
+# )
 
-timesheet_df['Night Shift Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0)),
-    axis=1
-)
+# timesheet_df['Night Shift Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0)),
+#     axis=1
+# )
+
+# Calculate night and day shift hours 
 
 
+
+
+# def get_shift_hours(row):
+#     dow = row['Day of the Week']  # assuming Mon=1, Sun=7
+#     start, end = row['TS_TimeOnly_Start'], row['TS_TimeOnly_End']
+
+#     if dow in [1, 2, 3, 4, 5]:  # Mon–Fri
+#         return (
+#             calculate_shift_hours(start, end, time(6, 0), time(18, 0)),   # Day
+#             calculate_shift_hours(start, end, time(18, 0), time(6, 0)),  # Night
+#             0,  # Saturday
+#             0   # Sunday
+#         )
+#     elif dow == 6:  # Saturday
+#         return (0, 0, (datetime.combine(datetime.today(), end) -
+#                        datetime.combine(datetime.today(), start)).total_seconds() / 3600, 0)
+#     elif dow == 7:  # Sunday
+#         return (0, 0, 0,
+#                 (datetime.combine(datetime.today(), end) -
+#                  datetime.combine(datetime.today(), start)).total_seconds() / 3600)
+#     else:
+#         return (0, 0, 0, 0)
+
+# # Apply function and assign to multiple columns
+# timesheet_df[['Day Shift Hours', 'Night Shift Hours', 'Saturday Hours', 'Sunday Hours']] = (
+#     timesheet_df.apply(get_shift_hours, axis=1, result_type='expand')
+# )
 
 
 # Step 1: Add `DOTW` (Day of the Week) where Saturday is 1 and Friday is 7
@@ -188,6 +217,38 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
     'N'
 )
 
+
+
+# Day shift (Mon–Fri only, weekdays 1–5)
+timesheet_df['Day Shift Hours'] = timesheet_df.apply(
+    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0))
+    if row['DOTW'] in [1, 2, 3, 4, 5] else 0,
+    axis=1
+)
+
+# Night shift (Mon–Fri only, weekdays 1–5)
+timesheet_df['Night Shift Hours'] = timesheet_df.apply(
+    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0))
+    if row['DOTW'] in [1, 2, 3, 4, 5] else 0,
+    axis=1
+)
+
+
+# Saturday hours (all worked hours on Sat)
+timesheet_df['Saturday Hours'] = timesheet_df.apply(
+    #lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(23, 59))
+    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
+    if row['DOTW'] == 6 else 0,
+    axis=1
+)
+
+# Sunday hours (all worked hours on Sun)
+timesheet_df['Sunday Hours'] = timesheet_df.apply(
+    #lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(23, 59))
+    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
+    if row['DOTW'] == 7 else 0,
+    axis=1
+)
 
 
 
@@ -801,7 +862,70 @@ timesheet_df_weekly_for_Leave['OT Post 2 Hours'] = (
 # timesheet_df['OT Post 2 Hours'] = (
 #     timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
 
+# # )
+
+# timesheet_df_weekly_for_Leave['Total Allied Weekly Pay'] = (
+    
+# (timesheet_df_weekly_for_Leave['Qty_Hourly Day'] * timesheet_df_weekly_for_Leave['Rate_Hourly Day']) +
+# (timesheet_df_weekly_for_Leave['Qty_Hourly Night'] * timesheet_df_weekly_for_Leave['Rate_Hourly Night']) +
+# (timesheet_df_weekly_for_Leave['Qty_Hourly Public Holiday'] * timesheet_df_weekly_for_Leave['Rate_Hourly Public Holiday']) +
+# (timesheet_df_weekly_for_Leave['Qty_Hourly Saturday'] * timesheet_df_weekly_for_Leave['Rate_Hourly Saturday']) +
+# (timesheet_df_weekly_for_Leave['Qty_Hourly Sunday'] * timesheet_df_weekly_for_Leave['Rate_Hourly Sunday']) +
+# (timesheet_df_weekly_for_Leave['Qty_Personal Salary'] * timesheet_df_weekly_for_Leave['Rate_Personal Salary']) +
+# (timesheet_df_weekly_for_Leave['Qty_Salary'] * timesheet_df_weekly_for_Leave['Rate_Salary'])
 # )
+
+
+
+
+
+pairs = [
+    ('Qty_Hourly Day',            'Rate_Hourly Day'),
+    ('Qty_Hourly Night',          'Rate_Hourly Night'),
+    ('Qty_Hourly Public Holiday', 'Rate_Hourly Public Holiday'),
+    ('Qty_Hourly Saturday',       'Rate_Hourly Saturday'),
+    ('Qty_Hourly Sunday',         'Rate_Hourly Sunday'),
+    ('Qty_Personal Salary',       'Rate_Personal Salary'),
+    ('Qty_Salary',                'Rate_Salary'),
+]
+
+# Helper to coerce a column to numeric safely (handles $, commas, blanks)
+def _num(series_or_scalar):
+    if isinstance(series_or_scalar, pd.Series):
+        s = series_or_scalar.astype(str).str.replace(r'[\$,]', '', regex=True)
+        return pd.to_numeric(s, errors='coerce').fillna(0.0)
+    else:
+        # if the column doesn't exist and we got the default scalar 0
+        return 0.0
+
+# Start with a zero Series aligned to the DataFrame index
+total = pd.Series(0.0, index=timesheet_df_weekly_for_Leave.index)
+
+for qty_col, rate_col in pairs:
+    q = _num(timesheet_df_weekly_for_Leave.get(qty_col, 0))
+    r = _num(timesheet_df_weekly_for_Leave.get(rate_col, 0))
+    total += q * r
+
+timesheet_df_weekly_for_Leave['Total Allied Weekly Pay'] = total.round(2)
+
+
+
+
+
+
+timesheet_df_weekly_for_Leave['Allied Above Award Day Rate (Min Rate)'] = (
+    timesheet_df_weekly_for_Leave['Rate_Hourly Day']
+    .replace(0, np.nan)              # treat 0 the same as NaN
+    .ffill()                         # forward fill down
+)
+
+
+
+
+# timesheet_df_weekly_for_Leave['Allied Weekly Pay including Overtime'] = (
+
+# (timesheet_df_weekly_for_Leave['OT First 2 Hours'] * timesheet_df_weekly_for_Leave['Allied Above Award Day Rate (Min Rate)']  * 1.5)
+# + (timesheet_df_weekly_for_Leave['OT Post 2 Hours'] * timesheet_df_weekly_for_Leave['Allied Above Award Day Rate (Min Rate)']  * 2)
 
 
 timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
