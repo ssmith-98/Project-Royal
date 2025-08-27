@@ -262,7 +262,7 @@ timesheet_df['Sunday Hours'] = timesheet_df.apply(
 
 
 # Step 1: Calculate Total Shift Hours Adj
-timesheet_df['Total Shift Hours'] = timesheet_df['Night Shift Hours'] + timesheet_df['Day Shift Hours']
+timesheet_df['Total Shift Hours'] = timesheet_df['Night Shift Hours'] + timesheet_df['Day Shift Hours'] + timesheet_df['Saturday Hours'] + timesheet_df['Sunday Hours']
 
 
 
