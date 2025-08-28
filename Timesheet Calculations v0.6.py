@@ -274,8 +274,33 @@ timesheet_df['Meal_Break_Deduction'] = np.where(
 )
 
 
+
+
+
 timesheet_df['Total TS Hours Adj'] = timesheet_df['Total TS Hours'] - timesheet_df['Meal_Break_Deduction']
 
+
+# Need adjustments for shifts that have day and nights hours
+# If a shift has both day and night hours then the meal break should be deducted from the
+# day hours only. If the day hours are less than 0.5 then deduct the balance from the night hours.
+
+# Day adjustment
+timesheet_df['Day TS Hours Adj'] = np.where(
+    (timesheet_df['Day TS Hours'] > 0) & (timesheet_df['Meal_Break_Deduction'] > 0),
+    np.maximum(0, timesheet_df['Day TS Hours'] - timesheet_df['Meal_Break_Deduction']),
+    timesheet_df['Day TS Hours']
+)
+
+# Night adjustment
+timesheet_df['Night TS Hours Adj'] = np.where(
+    (timesheet_df['Meal_Break_Deduction'] > 0),
+    np.where(
+        timesheet_df['Day TS Hours'] >= timesheet_df['Meal_Break_Deduction'],
+        timesheet_df['Night TS Hours'],  # meal fully taken from day
+        np.maximum(0, timesheet_df['Night TS Hours'] - np.maximum(0, timesheet_df['Meal_Break_Deduction'] - timesheet_df['Day TS Hours']))
+    ),
+    timesheet_df['Night TS Hours']
+)
 
 
 # !!!!!!!!!!!!!!!!   TO do 27/08/25!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -661,7 +686,31 @@ timesheet_df = timesheet_df[
 ]
 
 
-#timesheet_df = timesheet_df.drop(columns=['Employee ID', 'FY Starting', 'FY Ending'])
+# columns to be used in dollar amount calculations
+# Perm_Night_Ratio_Flag
+# Saturday TS Hours
+# Sunday TS Hours
+# Day TS Hours
+# Night TS Hours
+# Total TS Hours
+# Meal_Break_Deduction
+# Total TS Hours Adj
+# Weekly Total Hours
+# Gap_to_Next_Shift_Hours
+# Daily_Ordinary_Hours
+# Daily OT Flag
+# Weekly OT Flag
+# Daily OT Hours
+# Weekly OT Hours
+# OT First 2 Hours
+# OT Post 2 Hours
+# Saturday_Penality_flag
+# Sunday_Penality_flag
+
+
+
+
+
 
 columns_to_drop = [
     'First name',
@@ -682,13 +731,22 @@ columns_to_drop = [
 'pre_shift_cumulative',
 'Employee ID',
 'FY Starting',
-'FY Ending'
+'FY Ending',
+'Total Night TS Hours',
+'Total Day TS Hours',
+'Night Shift Ratio'
+
 
 ]
 
 
 timesheet_df = timesheet_df.drop(columns=columns_to_drop)
 # Reorder columns for better readability
+
+
+
+
+
 column_order = [
 
     'Timesheet ID',
@@ -715,9 +773,6 @@ column_order = [
 'Sunday_Penality_flag',
 'Day TS Hours',
 'Night TS Hours',
-'Total Night TS Hours',
-'Total Day TS Hours',
-'Night Shift Ratio',
 'Perm_Night_Ratio_Flag',
 'Saturday TS Hours',
 'Sunday TS Hours',
@@ -758,10 +813,8 @@ column_order = [
 'Paid Overtime First 2 Hours',
 'Paid Overtime after 2 Hours'
 ]
-
 # Reorder columns
 timesheet_df = timesheet_df[column_order]
-
 
 
 # Preview
