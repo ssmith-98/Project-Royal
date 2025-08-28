@@ -549,17 +549,30 @@ timesheet_df['OT Post 2 Hours'] = (
 # Need to cumulate night shift hours over the roster period
 
 # Added to determine OT eligibility point in time
-timesheet_df['Total Night TS Hours'] = timesheet_df.groupby(
-    ['Employee ID Consolidated', 'Roster Ending']
-)['Night TS Hours'].sum()
+# Ensure the grouping columns uniquely define a roster period (adjust if needed)
+group_cols = ['Employee ID Consolidated', 'Roster Ending']
 
-
-timesheet_df['Night_Ratio'] = (
-    timesheet_df['Total Night TS Hours'] / timesheet_df['Roster Period Total Hours']
+# Total Night TS Hours per roster period (aligned back with original rows)
+timesheet_df['Total Night TS Hours'] = (
+    timesheet_df.groupby(group_cols)['Night TS Hours']
+    .transform('sum')
 )
 
+timesheet_df['Total Day TS Hours'] = (
+    timesheet_df.groupby(group_cols)['Day TS Hours']
+    .transform('sum')
+)
+
+
+
+
+
+# Ratio of night shift hours
+timesheet_df['Night Shift Ratio'] = (
+    timesheet_df['Total Night TS Hours'] / (timesheet_df['Total Night TS Hours'] + timesheet_df['Total Day TS Hours'])
+)
 timesheet_df['Perm_Night_Ratio_Flag'] = np.where(
-    timesheet_df['Night_Ratio'] > (2/3),
+    timesheet_df['Night Shift Ratio'] > (2/3),
     'Y',
     'N'
 )
@@ -702,6 +715,10 @@ column_order = [
 'Sunday_Penality_flag',
 'Day TS Hours',
 'Night TS Hours',
+'Total Night TS Hours',
+'Total Day TS Hours',
+'Night Shift Ratio',
+'Perm_Night_Ratio_Flag',
 'Saturday TS Hours',
 'Sunday TS Hours',
 'Total TS Hours',
