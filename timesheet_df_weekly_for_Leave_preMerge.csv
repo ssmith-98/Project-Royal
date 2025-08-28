@@ -1,4 +1,4 @@
-EmpID_Week_Key,EmpID_PayDay_Key,Employee ID Consolidated,Estimated Pay Date,Roster Starting,Roster Ending,Week Number,Team member,Day Shift Hours,Night Shift Hours,Total Shift Hours Adj
+EmpID_Week_Key,EmpID_PayDay_Key,Employee ID Consolidated,Estimated Pay Date,Roster Starting,Roster Ending,Week Number,Team member,Day TS Hours,Night TS Hours,Total TS Hours Adj
 227_2023-11-12_W1,227_2023-11-08,227,2023-11-08,2023-10-30,2023-11-12,1,Mushraf Ali Khan Mohammed,0.0,24.0,23.0
 227_2023-11-12_W2,227_2023-11-15,227,2023-11-15,2023-10-30,2023-11-12,2,Mushraf Ali Khan Mohammed,0.0,42.0,40.0
 227_2023-11-26_W1,227_2023-11-22,227,2023-11-22,2023-11-13,2023-11-26,1,Mushraf Ali Khan Mohammed,0.0,48.0,46.0
