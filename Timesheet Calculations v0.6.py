@@ -543,6 +543,27 @@ timesheet_df['OT Post 2 Hours'] = (
 )
 
 
+# if night shift makes up more than 2/3 of time in the roster period then all night shift hours are at 130% rate
+# if night shift makes up less than 2/3 of time in the roster period then all night shift hours are at 121.7% Rate
+# columns needed: Night TS Hours, Roster Period Total Hours
+# Need to cumulate night shift hours over the roster period
+
+# Added to determine OT eligibility point in time
+timesheet_df['Total Night TS Hours'] = timesheet_df.groupby(
+    ['Employee ID Consolidated', 'Roster Ending']
+)['Night TS Hours'].sum()
+
+
+timesheet_df['Night_Ratio'] = (
+    timesheet_df['Total Night TS Hours'] / timesheet_df['Roster Period Total Hours']
+)
+
+timesheet_df['Perm_Night_Ratio_Flag'] = np.where(
+    timesheet_df['Night_Ratio'] > (2/3),
+    'Y',
+    'N'
+)
+
 timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member'])
 
 
