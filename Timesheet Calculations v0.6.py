@@ -276,6 +276,11 @@ timesheet_df['Meal_Break_Deduction'] = np.where(
 
 timesheet_df['Total Shift Hours Adj'] = timesheet_df['Total Shift Hours'] - timesheet_df['Meal_Break_Deduction']
 
+
+
+# !!!!!!!!!!!!!!!!   TO do 27/08/25!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Need to do the financial calculations on cleaned_timesheet_df rather than weeksheet_df 
+
 # Step 2: Ensure TS_Start_Date is datetime
 timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'])
 
@@ -435,6 +440,65 @@ timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member
 
 
 #timesheet_df['OT200']
+
+
+# Need to pull in the pay rates
+
+
+payrates_df = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\2025.08.19 - Employee classification & rate.xlsx", sheet_name='Staff List_FY level min rates')
+
+# where employee ID matches and between data range,  pull in the relevant pay rates
+# timesheet_df['Employee ID Consolidated'] and timseheet_df['Estimated Pay Date']
+
+
+# --- Assumptions ---
+# payrates_df has columns: ['Employee ID', 'Start Date', 'End Date', 'Rate_Hourly Day', ...]
+# timesheet_df has columns: ['Employee ID Consolidated', 'Estimated Pay Date', ...]
+# Dates are datetime dtype (if not, we’ll convert).
+
+# Ensure dates are datetime
+payrates_df['FY Starting'] = pd.to_datetime(payrates_df['FY Starting'])
+payrates_df['FY Ending'] = pd.to_datetime(payrates_df['FY Ending'])
+timesheet_df['Estimated Pay Date'] = pd.to_datetime(timesheet_df['Estimated Pay Date'])
+
+
+# Ensure both Employee IDs are the same dtype
+timesheet_df['Employee ID Consolidated'] = timesheet_df['Employee ID Consolidated'].astype(str).str.strip()
+payrates_df['Employee ID'] = payrates_df['Employee ID'].astype(str).str.strip()
+
+
+# pull in Allied Pay Rate	Award Pay Rate
+
+
+
+# Select only the needed columns from payrates_df
+payrates_subset = payrates_df[
+    ['Employee ID', 'FY Starting', 'FY Ending', 'Allied Pay Rate', 'Award Pay Rate']
+]
+
+# Merge
+timesheet_df = timesheet_df.merge(
+    payrates_subset,
+    left_on='Employee ID Consolidated',
+    right_on='Employee ID',
+    how='left'
+)
+
+# Filter by date range
+timesheet_df = timesheet_df[
+    (timesheet_df['Estimated Pay Date'] >= timesheet_df['FY Starting']) &
+    (timesheet_df['Estimated Pay Date'] <= timesheet_df['FY Ending'])
+]
+
+
+# # If multiple valid rows exist (overlapping ranges), pick the first (or latest start date)
+# timesheet_with_rates = timesheet_with_rates.sort_values(['Employee ID', 'Start Date'])
+# timesheet_with_rates = timesheet_with_rates.drop_duplicates(
+#     subset=['Employee ID Consolidated', 'Estimated Pay Date'],
+#     keep='last'   # keep latest valid rate
+# )
+
+# Now you have the pay rates mapped into your timesheet
 
 
 
