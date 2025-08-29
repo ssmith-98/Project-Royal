@@ -432,6 +432,9 @@ timesheet_df['End_dt'] = timesheet_df.apply(
 timesheet_df = timesheet_df.sort_values(by=['Employee ID Consolidated', 'Shift Start Time']).reset_index(drop=True)
 
 
+
+Daily_Ordinary_Hours = 7.6
+
 timesheet_df = timesheet_df.drop_duplicates(
     subset=['Employee ID Consolidated', 'Shift Start Time']
 ).sort_values(
@@ -442,10 +445,61 @@ timesheet_df['Next_Start_dt'] = (
     timesheet_df.groupby('Employee ID Consolidated')['Shift Start Time'].shift(-1)
 )
 
+timesheet_df['Next_End_dt'] = (
+    timesheet_df.groupby('Employee ID Consolidated')['End_dt'].shift(-1)
+)
+
+# Calculate current shift duration in hours
+timesheet_df['Shift_Duration_Hours'] = (
+    (timesheet_df['End_dt'] - timesheet_df['Start_dt']).dt.total_seconds() / 3600
+)
+
+timesheet_df['Next_Shift_Duration_Hours'] = (
+    (timesheet_df['Next_End_dt'] - timesheet_df['Next_Start_dt']).dt.total_seconds() / 3600
+)
+
+# Check if end and next start are on the same calendar day
+timesheet_df['Same_Day'] = (
+    timesheet_df['End_dt'].dt.date == timesheet_df['Next_Start_dt'].dt.date
+)
+
+# Apply Broken Shift rules
+timesheet_df['Broken_Shift_Flag'] = np.where(
+    (timesheet_df['Same_Day']) &
+    (timesheet_df['Shift_Duration_Hours'] < Daily_Ordinary_Hours) &
+    (timesheet_df['Next_Shift_Duration_Hours'] < Daily_Ordinary_Hours),
+    'Y',
+    'N'
+)
 
 # Calculate gap in hours between current end and next start
 timesheet_df['Gap_to_Next_Shift_Hours'] = (
     (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600
+)
+
+# If broken shift, ensure gap is greater than 0 and less than 12 hours
+timesheet_df['Broken_Shift_Flag'] = np.where(
+    (timesheet_df['Broken_Shift_Flag'] == 'Y') &
+    (timesheet_df['Gap_to_Next_Shift_Hours'] > 0) &
+    (timesheet_df['Gap_to_Next_Shift_Hours'] < 12),
+    'Y',
+    'N'
+)
+
+
+timesheet_df['Broken Shift Allowance Amount'] = np.where(
+    timesheet_df['Broken_Shift_Flag'] == 'Y',
+    17.47,
+    0
+)
+
+
+timesheet_df['Breaks between work periods'] = np.where(
+    (timesheet_df['Gap_to_Next_Shift_Hours'] < 8 ) &
+    (timesheet_df['Gap_to_Next_Shift_Hours'] > 0 ) &
+    (timesheet_df['Broken_Shift_Flag'] == 'N'),
+    'Less than 8 hours',
+    'Greater than 8 hours'
 )
 
 # Optional: filter or flag gaps
@@ -455,7 +509,12 @@ timesheet_df['Gap_to_Next_Shift_Hours'] = (
 print(timesheet_df[['Employee ID Consolidated', 'Start_dt', 'End_dt', 'Gap_to_Next_Shift_Hours']])
 
 
-timesheet_df['Daily_Ordinary_Hours'] = 7.6
+
+timesheet_df.to_csv('timesheet_with_gaps.csv')
+
+
+
+
 
 
 ### !!!!!! OverTime Calculations !!!!!!!!!!!!!!!!!
@@ -548,24 +607,48 @@ timesheet_df['pre_shift_cumulative'] = (
 
 
 # # Step 1 – calculate candidate first 2 hours
-# timesheet_df['OT First 2 Hours'] = np.where(
+# timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
 #     (timesheet_df['Weekly OT Flag'] == 'Y') & (timesheet_df['Sunday_Penality_flag'] == 'N'),
 #     np.clip(timesheet_df['Weekly OT Hours'], 0, 2),
 #     0
 # )
 
-timesheet_df['OT First 2 Hours'] = np.where(
+timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
     (timesheet_df['Roster Cumulative Hours'] > Max_Ord_Hrs) & 
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Weekly OT Flag'] == 'Y') &
     ((timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj']) <= Max_Ord_Hrs),
     2,
+   np.clip(timesheet_df['Weekly OT Hours'], 0, 2)
+)
+
+timesheet_df['OT First 2 Hours (Daily)'] = np.where(
+    (timesheet_df['Daily OT Flag'] == 'Y') &
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Weekly OT Flag'] == 'N'),
+    np.clip(timesheet_df['Daily OT Hours'], 0, 2),
     0
 )
 
 
-timesheet_df['OT Post 2 Hours'] = (
-    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours']
+
+timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
+    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)'] > 0,
+    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)'],
+    0
 
 )
+
+timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'] > 0,
+    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'],
+    0
+)
+
+# Add the Daily and Weekly OT first 2 hours and post 2 hours as there is no overlap
+
+timesheet_df['OT First 2 Hours'] = timesheet_df['OT First 2 Hours (Weekly)'] + timesheet_df['OT First 2 Hours (Daily)']
+timesheet_df['OT Post 2 Hours'] = timesheet_df['OT Post 2 Hours (Weekly)'] + timesheet_df['OT Post 2 Hours (Daily)']
 
 
 # if night shift makes up more than 2/3 of time in the roster period then all night shift hours are at 130% rate
@@ -706,7 +789,35 @@ timesheet_df = timesheet_df[
 # OT Post 2 Hours
 # Saturday_Penality_flag
 # Sunday_Penality_flag
+# Day adjustment
+# Day TS Hours Adj
+# Night TS Hours Adj
 
+
+
+# Night Amount = Night TS Hours Adj * Award Night Pay Rate or Paid Night Pay Rate
+timesheet_df['Night Amount'] = timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Night Pay Rate']
+timesheet_df['Day Amount'] = timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']
+timesheet_df['Saturday Amount'] = np.where(
+    timesheet_df['Saturday_Penality_flag'] == 'Y',
+    timesheet_df['Saturday TS Hours'] * timesheet_df['Award Saturday Pay Rate'],
+    0
+)
+timesheet_df['Sunday Amount'] = np.where(
+    timesheet_df['Sunday_Penality_flag'] == 'Y',
+    timesheet_df['Sunday TS Hours'] * timesheet_df['Award Sunday Pay Rate'],
+    0
+)
+timesheet_df['OT First 2 Hours Amount'] = timesheet_df['OT First 2 Hours'] * timesheet_df['Award Overtime First 2 Hours']
+timesheet_df['OT Post 2 Hours Amount'] = timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours']
+timesheet_df['Total Amount'] = (
+    timesheet_df['Night Amount'] +
+    timesheet_df['Day Amount'] +
+    timesheet_df['Saturday Amount'] +
+    timesheet_df['Sunday Amount'] +
+    timesheet_df['OT First 2 Hours Amount'] +
+    timesheet_df['OT Post 2 Hours Amount']
+)
 
 
 
@@ -726,7 +837,9 @@ columns_to_drop = [
 'Week 2 Pay Date',
 'Start_dt',
 'End_dt',
-'Next_Start_dt',
+#'Next_Start_dt',
+#'Gap_to_Next_Shift_Hours',
+
 'Timesheet Cost',
 'pre_shift_cumulative',
 'Employee ID',
@@ -788,8 +901,8 @@ column_order = [
 'Weekly Cumulative Hours',
 'Roster Cumulative Hours',
 'Roster Period Total Hours',
+'Next_Start_dt',
 'Gap_to_Next_Shift_Hours',
-'Daily_Ordinary_Hours',
 'Daily OT Flag',
 'Weekly OT Flag',
 'Daily OT Hours',
