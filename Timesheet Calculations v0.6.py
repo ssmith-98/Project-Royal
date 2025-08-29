@@ -493,14 +493,38 @@ timesheet_df['Broken Shift Allowance Amount'] = np.where(
     0
 )
 
+# Identify gaps less than 8 hours but greater than 1 hour between shifts (not broken shifts)
 
-timesheet_df['Breaks between work periods'] = np.where(
+timesheet_df['Breaks between work periods Breach'] = np.where(
     (timesheet_df['Gap_to_Next_Shift_Hours'] < 8 ) &
-    (timesheet_df['Gap_to_Next_Shift_Hours'] > 0 ) &
+    (timesheet_df['Gap_to_Next_Shift_Hours'] > 1 ) &
     (timesheet_df['Broken_Shift_Flag'] == 'N'),
     'Less than 8 hours',
     'Greater than 8 hours'
 )
+
+
+
+timesheet_df['Breaks between work periods Top Up Flag'] = (
+    timesheet_df.groupby('Employee ID Consolidated')['Breaks between work periods Breach']
+    .shift(1)  # look at the previous row in the group
+    .eq('Less than 8 hours')  # check if it equals that string
+    .map({True: 'Y', False: 'N'})  # convert to Y/N
+)
+
+timesheet_df['Breaks between work periods - Hours'] = np.where(
+    timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
+    timesheet_df['Total TS Hours Adj'],
+    0
+)
+
+# Added in overwrite of Breaks between work periods Breach column to prevent confusion and flag when prior shift breached
+timesheet_df['Breaks between work periods Breach'] = np.where(
+    timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
+    'Gap between Prior shift and this shift caused the breach',
+    timesheet_df['Breaks between work periods Breach']
+)
+
 
 # Optional: filter or flag gaps
 # timesheet_df['Flag_Short_Gap'] = timesheet_df['Gap_to_Next_Shift_Hours'] < 12
@@ -796,27 +820,52 @@ timesheet_df = timesheet_df[
 
 
 # Night Amount = Night TS Hours Adj * Award Night Pay Rate or Paid Night Pay Rate
-timesheet_df['Night Amount'] = timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Night Pay Rate']
-timesheet_df['Day Amount'] = timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']
-timesheet_df['Saturday Amount'] = np.where(
-    timesheet_df['Saturday_Penality_flag'] == 'Y',
+
+
+timesheet_df['Night Amount (Award)'] = timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Night Pay Rate']
+timesheet_df['Day Amount (Award)'] = timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']
+
+timesheet_df['Saturday Amount (Award)'] = np.where(
+    (timesheet_df['Saturday_Penality_flag'] == 'Y') &
+    (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
     timesheet_df['Saturday TS Hours'] * timesheet_df['Award Saturday Pay Rate'],
     0
 )
-timesheet_df['Sunday Amount'] = np.where(
+timesheet_df['Sunday Amount (Award)'] = np.where(
     timesheet_df['Sunday_Penality_flag'] == 'Y',
     timesheet_df['Sunday TS Hours'] * timesheet_df['Award Sunday Pay Rate'],
     0
 )
-timesheet_df['OT First 2 Hours Amount'] = timesheet_df['OT First 2 Hours'] * timesheet_df['Award Overtime First 2 Hours']
-timesheet_df['OT Post 2 Hours Amount'] = timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours']
-timesheet_df['Total Amount'] = (
-    timesheet_df['Night Amount'] +
-    timesheet_df['Day Amount'] +
-    timesheet_df['Saturday Amount'] +
-    timesheet_df['Sunday Amount'] +
-    timesheet_df['OT First 2 Hours Amount'] +
-    timesheet_df['OT Post 2 Hours Amount']
+timesheet_df['OT First 2 Hours Amount (Award)'] = np.where(
+    (timesheet_df['OT First 2 Hours'] > 0) &
+    (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
+    timesheet_df['OT First 2 Hours'] * timesheet_df['Award Overtime First 2 Hours'],
+    0
+)
+
+timesheet_df['OT Post 2 Hours Amount (Award)'] = np.where(
+    (timesheet_df['OT Post 2 Hours'] > 0) &
+    (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
+    timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours'],
+    0
+)
+
+timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
+    timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
+    timesheet_df['Breaks between work periods - Hours'] * (timesheet_df['Award Minimum Hourly Pay Rate']*2),
+    0
+)
+
+
+
+timesheet_df['Total Amount (Award)'] = (
+    timesheet_df['Night Amount (Award)'] +
+    timesheet_df['Day Amount (Award)'] +
+    timesheet_df['Saturday Amount (Award)'] +
+    timesheet_df['Sunday Amount (Award)'] +
+    timesheet_df['OT First 2 Hours Amount (Award)'] +
+    timesheet_df['OT Post 2 Hours Amount (Award)'] +
+    timesheet_df['Breaks between work periods - Amount (Award)']
 )
 
 
@@ -903,6 +952,15 @@ column_order = [
 'Roster Period Total Hours',
 'Next_Start_dt',
 'Gap_to_Next_Shift_Hours',
+'Shift_Duration_Hours',
+'Next_Shift_Duration_Hours',
+'Broken_Shift_Flag',
+'Broken Shift Allowance Amount',
+'Breaks between work periods Breach',
+'Breaks between work periods Top Up Flag',
+'Breaks between work periods - Hours',
+
+
 'Daily OT Flag',
 'Weekly OT Flag',
 'Daily OT Hours',
@@ -924,7 +982,15 @@ column_order = [
 'Paid Sunday Pay Rate',
 'Paid Public Holiday Pay Rate',
 'Paid Overtime First 2 Hours',
-'Paid Overtime after 2 Hours'
+'Paid Overtime after 2 Hours',
+'Night Amount (Award)',
+'Day Amount (Award)',
+'Saturday Amount (Award)',
+'Sunday Amount (Award)',
+'OT First 2 Hours Amount (Award)',
+'OT Post 2 Hours Amount (Award)',
+'Breaks between work periods - Amount (Award)',
+'Total Amount (Award)'
 ]
 # Reorder columns
 timesheet_df = timesheet_df[column_order]
@@ -940,7 +1006,7 @@ timesheet_df.to_excel("Timesheet_clean.xlsx", sheet_name='timesheet', index=Fals
 
 
 
-
+### !!!!!!!! OT WWITH LEAVE CALCS !!!!!!!!!!!!!!!!! ###
 
 
 
