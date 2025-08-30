@@ -822,41 +822,99 @@ timesheet_df = timesheet_df[
 # Night Amount = Night TS Hours Adj * Award Night Pay Rate or Paid Night Pay Rate
 
 
-timesheet_df['Night Amount (Award)'] = timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Night Pay Rate']
-timesheet_df['Day Amount (Award)'] = timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']
+# timesheet_df['Night Amount (Award)'] = timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Night Pay Rate']
+# timesheet_df['Day Amount (Award)'] = timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']
+
+# timesheet_df['Saturday Amount (Award)'] = np.where(
+#     (timesheet_df['Saturday_Penality_flag'] == 'Y') &
+#     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
+#     timesheet_df['Saturday TS Hours'] * timesheet_df['Award Saturday Pay Rate'],
+#     0
+# )
+# timesheet_df['Sunday Amount (Award)'] = np.where(
+#     timesheet_df['Sunday_Penality_flag'] == 'Y',
+#     timesheet_df['Sunday TS Hours'] * timesheet_df['Award Sunday Pay Rate'],
+#     0
+# )
+# timesheet_df['OT First 2 Hours Amount (Award)'] = np.where(
+#     (timesheet_df['OT First 2 Hours'] > 0) &
+#     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
+#     timesheet_df['OT First 2 Hours'] * timesheet_df['Award Overtime First 2 Hours'],
+#     0
+# )
+
+# timesheet_df['OT Post 2 Hours Amount (Award)'] = np.where(
+#     (timesheet_df['OT Post 2 Hours'] > 0) &
+#     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
+#     timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours'],
+#     0
+# )
+
+# timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
+#     timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
+#     timesheet_df['Breaks between work periods - Hours'] * (timesheet_df['Award Minimum Hourly Pay Rate']*2),
+#     0
+# )
+
+
+
+# timesheet_df['Total Amount (Award)'] = (
+#     timesheet_df['Night Amount (Award)'] +
+#     timesheet_df['Day Amount (Award)'] +
+#     timesheet_df['Saturday Amount (Award)'] +
+#     timesheet_df['Sunday Amount (Award)'] +
+#     timesheet_df['OT First 2 Hours Amount (Award)'] +
+#     timesheet_df['OT Post 2 Hours Amount (Award)'] +
+#     timesheet_df['Breaks between work periods - Amount (Award)']
+# )
+
+timesheet_df['Night Amount (Award)'] = np.where(
+    timesheet_df['Perm_Night_Ratio_Flag'] == 'Y',
+    (timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Perm Night Pay Rate']).round(2),
+    np.where(
+        (timesheet_df['Perm_Night_Ratio_Flag'] == 'N'),
+        (timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Night Pay Rate']).round(2),
+        0
+)
+)
+
+
+timesheet_df['Day Amount (Award)'] = (
+    (timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']).round(2)
+)
 
 timesheet_df['Saturday Amount (Award)'] = np.where(
     (timesheet_df['Saturday_Penality_flag'] == 'Y') &
     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
-    timesheet_df['Saturday TS Hours'] * timesheet_df['Award Saturday Pay Rate'],
+    (timesheet_df['Saturday TS Hours'] * timesheet_df['Award Saturday Pay Rate']).round(2),
     0
 )
+
 timesheet_df['Sunday Amount (Award)'] = np.where(
     timesheet_df['Sunday_Penality_flag'] == 'Y',
-    timesheet_df['Sunday TS Hours'] * timesheet_df['Award Sunday Pay Rate'],
+    (timesheet_df['Sunday TS Hours'] * timesheet_df['Award Sunday Pay Rate']).round(2),
     0
 )
+
 timesheet_df['OT First 2 Hours Amount (Award)'] = np.where(
     (timesheet_df['OT First 2 Hours'] > 0) &
     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
-    timesheet_df['OT First 2 Hours'] * timesheet_df['Award Overtime First 2 Hours'],
+    (timesheet_df['OT First 2 Hours'] * timesheet_df['Award Overtime First 2 Hours']).round(2),
     0
 )
 
 timesheet_df['OT Post 2 Hours Amount (Award)'] = np.where(
     (timesheet_df['OT Post 2 Hours'] > 0) &
     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
-    timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours'],
+    (timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours']).round(2),
     0
 )
 
 timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
     timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
-    timesheet_df['Breaks between work periods - Hours'] * (timesheet_df['Award Minimum Hourly Pay Rate']*2),
+    (timesheet_df['Breaks between work periods - Hours'] * (timesheet_df['Award Minimum Hourly Pay Rate']*2)).round(2),
     0
 )
-
-
 
 timesheet_df['Total Amount (Award)'] = (
     timesheet_df['Night Amount (Award)'] +
@@ -866,8 +924,7 @@ timesheet_df['Total Amount (Award)'] = (
     timesheet_df['OT First 2 Hours Amount (Award)'] +
     timesheet_df['OT Post 2 Hours Amount (Award)'] +
     timesheet_df['Breaks between work periods - Amount (Award)']
-)
-
+).round(2)
 
 
 
@@ -905,7 +962,7 @@ columns_to_drop = [
 timesheet_df = timesheet_df.drop(columns=columns_to_drop)
 # Reorder columns for better readability
 
-
+timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.date
 
 
 
@@ -935,27 +992,29 @@ column_order = [
 'Sunday_Penality_flag',
 'Day TS Hours',
 'Night TS Hours',
+'Meal_Break_Deduction',
+'Day TS Hours Adj',
+'Night TS Hours Adj',
 'Perm_Night_Ratio_Flag',
 'Saturday TS Hours',
 'Sunday TS Hours',
 'Total TS Hours',
-'Meal_Break_Deduction',
 'Total TS Hours Adj',
 'Week Number',
 'Roster Starting',
-'Roster Ending',
 'Week Ending',
+'Roster Ending',
 'Estimated Pay Date',
-'Weekly Total Hours',
+#'Weekly Total Hours',
 'Weekly Cumulative Hours',
 'Roster Cumulative Hours',
-'Roster Period Total Hours',
+#'Roster Period Total Hours',
 'Next_Start_dt',
 'Gap_to_Next_Shift_Hours',
-'Shift_Duration_Hours',
+#'Shift_Duration_Hours',
 'Next_Shift_Duration_Hours',
 'Broken_Shift_Flag',
-'Broken Shift Allowance Amount',
+
 'Breaks between work periods Breach',
 'Breaks between work periods Top Up Flag',
 'Breaks between work periods - Hours',
@@ -969,20 +1028,20 @@ column_order = [
 'OT Post 2 Hours',
 'Paid Minimum Hourly Pay Rate',
 'Award Minimum Hourly Pay Rate',
-'Award Night Pay Rate',
-'Award Perm Night Pay Rate',
-'Award Saturday Pay Rate',
-'Award Sunday Pay Rate',
-'Award Public Holiday Pay Rate',
-'Award Overtime First 2 Hours',
-'Award Overtime After 2 Hours',
-'Paid Night Pay Rate',
-'Paid Perm Night Pay Rate',
-'Paid Saturday Pay Rate',
-'Paid Sunday Pay Rate',
-'Paid Public Holiday Pay Rate',
-'Paid Overtime First 2 Hours',
-'Paid Overtime after 2 Hours',
+#'Award Night Pay Rate',
+#'Award Perm Night Pay Rate',
+#'Award Saturday Pay Rate',
+#'Award Sunday Pay Rate',
+#'Award Public Holiday Pay Rate',
+#'Award Overtime First 2 Hours',
+#'Award Overtime After 2 Hours',
+#'Paid Night Pay Rate',
+#'Paid Perm Night Pay Rate',
+#'Paid Saturday Pay Rate',
+#'Paid Sunday Pay Rate',
+#'Paid Public Holiday Pay Rate',
+#'Paid Overtime First 2 Hours',
+#'Paid Overtime after 2 Hours',
 'Night Amount (Award)',
 'Day Amount (Award)',
 'Saturday Amount (Award)',
@@ -990,14 +1049,15 @@ column_order = [
 'OT First 2 Hours Amount (Award)',
 'OT Post 2 Hours Amount (Award)',
 'Breaks between work periods - Amount (Award)',
-'Total Amount (Award)'
+'Total Amount (Award)',
+'Broken Shift Allowance Amount',
 ]
 # Reorder columns
 timesheet_df = timesheet_df[column_order]
 
 
 # Preview
-print(timesheet_df[['TS_TimeOnly_Start', 'TS_TimeOnly_End', 'Difference in Hours', 'Night TS Hours', 'Day TS Hours']])
+
 timesheet_df.to_excel("Timesheet_clean.xlsx", sheet_name='timesheet', index=False)
 
 
@@ -1061,7 +1121,7 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
     'Roster Ending': 'first',
     'Week Number': 'first',
     'Team member': 'first',
-    'Day TS Hours': 'sum',
+   
     # 'Timesheet Start Time', 'Timesheet End Time',
     #    'Timesheet Total Time', 'Shift Start Time', 'Shift End Time',
     #    'Shift Total Time', 'Timesheet location', 'Timesheet area',
@@ -1070,11 +1130,25 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
        #'Timesheet Cost',
     #      'TS_Start_Date', 'TS_End_Date', 'TS_TimeOnly_Start',
     #    'TS_TimeOnly_End', 'Employee ID Consolidated', 'Difference in Hours',
-       'Day TS Hours' : 'sum',
-       'Night TS Hours' : 'sum', 
+       'Day TS Hours Adj' : 'sum',
+       'Night TS Hours Adj' : 'sum', 
     #    'DOTW', 'Weekday',
     #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
        'Total TS Hours Adj' : 'sum',
+       'OT First 2 Hours' : 'sum',
+       'OT Post 2 Hours' : 'sum',
+       'Breaks between work periods - Hours' : 'sum',
+       'Night Amount (Award)' : 'sum',
+       'Day Amount (Award)' : 'sum',
+        'Saturday Amount (Award)' : 'sum',
+        'Sunday Amount (Award)' : 'sum',
+        'OT First 2 Hours Amount (Award)' : 'sum',
+        'OT Post 2 Hours Amount (Award)' : 'sum',
+        'Breaks between work periods - Amount (Award)' : 'sum',
+        'Total Amount (Award)' : 'sum',
+        'Broken Shift Allowance Amount' : 'sum',
+   
+
        # 'Roster Ending' : 'first', 
       # 'Roster Period Total Hours' : 'first',
 
