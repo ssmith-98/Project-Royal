@@ -536,43 +536,6 @@ timesheet_df['OT Post 2 Hours (Weekly)'] = (
 ).clip(lower=0)
 
 
-# # Compute cumulative OT hours across the roster week
-# timesheet_df['cum_weekly_ot'] = timesheet_df.groupby(
-#     ['Employee ID Consolidated', 'Roster Ending']
-# )['Weekly OT Hours'].cumsum()
-
-# # Available "room" left towards the 2-hour cap
-# timesheet_df['remaining_cap'] = 2 - (
-#     timesheet_df.groupby(['Employee ID Consolidated', 'Roster Ending'])
-#     ['Weekly OT Hours'].cumsum().shift(fill_value=0)
-# )
-
-# # Apply the OT First 2 Hours logic
-# timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
-#     (timesheet_df['Roster Cumulative Hours'] > Max_Ord_Hrs) & 
-#     (timesheet_df['Sunday_Penality_flag'] == 'N') & 
-#     (timesheet_df['Roster OT Flag'] == 'Y') & 
-#     ((timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj']) <= Max_Ord_Hrs),
-
-#     # Min between this row's Weekly OT and remaining room in the cap
-#     np.minimum(timesheet_df['Weekly OT Hours'], timesheet_df['remaining_cap']),
-
-#     0
-# )
-
-
-
-
-# timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
-#     (timesheet_df['Roster Cumulative Hours'] > Max_Ord_Hrs) & 
-#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
-#     (timesheet_df['Roster OT Flag'] == 'Y') &
-#     ((timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj']) <= Max_Ord_Hrs),
-#     2,
-#    np.clip(timesheet_df['Weekly OT Hours'], 0, 2)
-# )
-
-
 
 timesheet_df['OT First 2 Hours (Daily)'] = np.where(
     (timesheet_df['Daily OT Flag'] == 'Y') &
@@ -582,14 +545,6 @@ timesheet_df['OT First 2 Hours (Daily)'] = np.where(
     0
 )
 
-
-
-timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
-    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)'] > 0,
-    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)'],
-    0
-
-)
 
 timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
     timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'] > 0,
@@ -603,8 +558,10 @@ timesheet_df['OT First 2 Hours'] = timesheet_df['OT First 2 Hours (Weekly)'] + t
 timesheet_df['OT Post 2 Hours'] = timesheet_df['OT Post 2 Hours (Weekly)'] + timesheet_df['OT Post 2 Hours (Daily)']
 
 
+# === End of First 2 Hours OT and Post 2 Hours OT Calculations ===
 
-timesheet_df.to_csv(r"Weekly OT First 2 Hours Debug.csv")
+# === Start of Night, Night (Perm) and Day TS Hours  ===
+
 # if night shift makes up more than 2/3 of time in the roster period then all night shift hours are at 130% rate
 # if night shift makes up less than 2/3 of time in the roster period then all night shift hours are at 121.7% Rate
 # columns needed: Night TS Hours, Roster Period Total Hours
@@ -626,10 +583,8 @@ timesheet_df['Total Day TS Hours'] = (
 )
 
 
-
-
-
 # Ratio of night shift hours
+# If more than 2/3 hours are nights within Roster Period then flag as Y otherwise N
 timesheet_df['Night Shift Ratio'] = (
     timesheet_df['Total Night TS Hours'] / (timesheet_df['Total Night TS Hours'] + timesheet_df['Total Day TS Hours'])
 )
@@ -641,18 +596,8 @@ timesheet_df['Perm_Night_Ratio_Flag'] = np.where(
 
 timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member'])
 
+# === End of Night, Night (Perm) and Day TS Hours  ===
 
-
-
-
-
-
-
-# Use 10 hours for daily overtime 
-
-
-
-#timesheet_df['OT200']
 
 
 # Need to pull in the pay rates
