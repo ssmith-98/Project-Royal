@@ -125,50 +125,89 @@ timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_n
 
 # Can make these account for Weekend OT and PH once the PH list is complete
 
+Public_Holidays = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Public Holidays Victoria.xlsx", sheet_name='PH')
+Public_Holidays['Date'] = pd.to_datetime(Public_Holidays['Date'], errors='coerce').dt.date
+timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'], errors='coerce').dt.date
+
+# Saturday, Sunday and PH Penality Flags
+
+timesheet_df['Public_Holiday_flag'] = np.where(
+    timesheet_df['TS_Start_Date'].isin(Public_Holidays['Date']),
+    'Y',
+    'N'
+)
+
+
+
 timesheet_df['Saturday_Penality_flag'] = np.where(
-    timesheet_df['DOTW'] == 6,
+    (timesheet_df['DOTW'] == 6) & 
+    (timesheet_df['Public_Holiday_flag'] =='N'),
     'Y',
     'N'
 )
 
 timesheet_df['Sunday_Penality_flag'] = np.where(
-    timesheet_df['DOTW'] == 7,
+    (timesheet_df['DOTW'] == 7) & (timesheet_df['Public_Holiday_flag'] =='N'),
     'Y',
     'N'
 )
 
-
+# Public Holiday Hours (all worked hours on PH)
+timesheet_df['PH TS Hours'] = timesheet_df.apply(
+    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
+    if row['Public_Holiday_flag'] == 'Y' else 0,
+    axis=1
+)
 
 # Day shift (Mon–Fri only, weekdays 1–5)
 timesheet_df['Day TS Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0))
-    if row['DOTW'] in [1, 2, 3, 4, 5] else 0,
+    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0)) 
+    if (row['DOTW'] in [1, 2, 3, 4, 5]) 
+    # and (row['Public_Holiday_flag'] != 'Y') 
+    else 0,
     axis=1
 )
+
+
 
 # Night shift (Mon–Fri only, weekdays 1–5)
 timesheet_df['Night TS Hours'] = timesheet_df.apply(
     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0))
-    if row['DOTW'] in [1, 2, 3, 4, 5] else 0,
+    if (row['DOTW'] in [1, 2, 3, 4, 5]) 
+    #and (row['Public_Holiday_flag'] != 'Y') 
+    else 0,
     axis=1
 )
 
-
 # Saturday TS Hours (all worked hours on Sat)
 timesheet_df['Saturday TS Hours'] = timesheet_df.apply(
-    #lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(23, 59))
     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
-    if row['DOTW'] == 6 else 0,
+    if (row['DOTW'] == 6) 
+    # and (row['Public_Holiday_flag'] != 'Y') 
+    else 0,
     axis=1
 )
 
 # Sunday TS Hours (all worked hours on Sun)
 timesheet_df['Sunday TS Hours'] = timesheet_df.apply(
-    #lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(23, 59))
     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
-    if row['DOTW'] == 7 else 0,
+    if (row['DOTW'] == 7) 
+    #and (row['Public_Holiday_flag'] != 'Y') 
+    else 0,
     axis=1
 )
+
+
+# Deduct PH TS Hours were applicable - covers instances where some hours fall on PH 
+# Ensure that shift hours are not negative after subtracting Public Holiday hours
+timesheet_df['Day TS Hours'] = (timesheet_df['Day TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+timesheet_df['Night TS Hours'] = (timesheet_df['Night TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+timesheet_df['Saturday TS Hours'] = (timesheet_df['Saturday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+timesheet_df['Sunday TS Hours'] = (timesheet_df['Sunday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+
+
+
+
 
 
 
@@ -180,7 +219,7 @@ timesheet_df['Sunday TS Hours'] = timesheet_df.apply(
 
 
 # Step 1: Calculate Total TS Hours Adj
-timesheet_df['Total TS Hours'] = timesheet_df['Night TS Hours'] + timesheet_df['Day TS Hours'] + timesheet_df['Saturday TS Hours'] + timesheet_df['Sunday TS Hours']
+timesheet_df['Total TS Hours'] = timesheet_df['Night TS Hours'] + timesheet_df['Day TS Hours'] + timesheet_df['Saturday TS Hours'] + timesheet_df['Sunday TS Hours'] + timesheet_df['PH TS Hours']
 
 
 
@@ -345,6 +384,7 @@ timesheet_df = timesheet_df.drop_duplicates(
 timesheet_df['Next_Start_dt'] = (
     timesheet_df.groupby('Employee ID Consolidated')['Shift Start Time'].shift(-1)
 )
+
 timesheet_df['Next_End_dt'] = (
     timesheet_df.groupby('Employee ID Consolidated')['End_dt'].shift(-1)
 )
@@ -377,6 +417,11 @@ timesheet_df['Gap_to_Next_Shift_Hours'] = (
     (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600
 )
 
+# Flag to detect last shift in dataset
+timesheet_df['Gap_Label'] = timesheet_df['Gap_to_Next_Shift_Hours'].isna().map(
+    {True: "Last Shift in Review", False: "Has Next Shift"}
+)
+
 # If broken shift, ensure gap is greater than 0 and less than 12 hours
 timesheet_df['Broken_Shift_Flag'] = np.where(
     (timesheet_df['Broken_Shift_Flag'] == 'Y') &
@@ -387,11 +432,7 @@ timesheet_df['Broken_Shift_Flag'] = np.where(
 )
 
 
-timesheet_df['Broken Shift Allowance Amount'] = np.where(
-    timesheet_df['Broken_Shift_Flag'] == 'Y',
-    17.47,
-    0
-)
+
 
 # Identify gaps less than 8 hours but greater than 1 hour between shifts (not broken shifts)
 timesheet_df['Breaks between work periods Breach'] = np.where(
@@ -455,7 +496,10 @@ timesheet_df['Roster OT Flag'] = np.where(
 # Condition: OT flag is Y and not on a Sunday and not already OT due to weekly hours
 # Result: All hours above 10 in the day are OT
 timesheet_df['Daily OT Hours'] = np.where(
-    ((timesheet_df['Daily OT Flag'] == 'Y') & (timesheet_df['Sunday_Penality_flag'] == 'N') & (timesheet_df['Roster OT Flag'] == 'N')),
+    ((timesheet_df['Daily OT Flag'] == 'Y') & 
+     (timesheet_df['Sunday_Penality_flag'] == 'N') & 
+     (timesheet_df['Public_Holiday_flag'] == 'N') & 
+     (timesheet_df['Roster OT Flag'] == 'N')),
     timesheet_df['Total TS Hours Adj'] - Max_Ord_Hrs_Day,
     0)
 
@@ -535,11 +579,30 @@ timesheet_df['OT Post 2 Hours (Weekly)'] = (
     timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)']
 ).clip(lower=0)
 
+# ensure no doubling up of OT Hours and Sunday and PH hours
+timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
+    (timesheet_df['Roster OT Flag'] == 'Y') &
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] == 'N'),
+    timesheet_df['OT First 2 Hours (Weekly)'],
+    0
+)
+
+timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
+    (timesheet_df['Roster OT Flag'] == 'Y') &
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] == 'N'),
+    timesheet_df['OT Post 2 Hours (Weekly)'],
+    0
+)
+
+
 
 
 timesheet_df['OT First 2 Hours (Daily)'] = np.where(
     (timesheet_df['Daily OT Flag'] == 'Y') &
     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] == 'N') & 
     (timesheet_df['Roster OT Flag'] == 'N'),
     np.clip(timesheet_df['Daily OT Hours'], 0, 2),
     0
@@ -552,10 +615,21 @@ timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
     0
 )
 
+timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+    (timesheet_df['Roster OT Flag'] == 'Y') &
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] == 'N'),
+    timesheet_df['OT Post 2 Hours (Daily)'],
+    0
+)
+
+
 # Add the Daily and Weekly OT first 2 hours and post 2 hours as there is no overlap
 
 timesheet_df['OT First 2 Hours'] = timesheet_df['OT First 2 Hours (Weekly)'] + timesheet_df['OT First 2 Hours (Daily)']
 timesheet_df['OT Post 2 Hours'] = timesheet_df['OT Post 2 Hours (Weekly)'] + timesheet_df['OT Post 2 Hours (Daily)']
+
+
 
 
 # === End of First 2 Hours OT and Post 2 Hours OT Calculations ===
@@ -576,7 +650,7 @@ timesheet_df['Total Night TS Hours'] = (
     timesheet_df.groupby(group_cols)['Night TS Hours']
     .transform('sum')
 )
-
+# Total Day TS Hours per roster period (aligned back with original rows)
 timesheet_df['Total Day TS Hours'] = (
     timesheet_df.groupby(group_cols)['Day TS Hours']
     .transform('sum')
@@ -588,6 +662,7 @@ timesheet_df['Total Day TS Hours'] = (
 timesheet_df['Night Shift Ratio'] = (
     timesheet_df['Total Night TS Hours'] / (timesheet_df['Total Night TS Hours'] + timesheet_df['Total Day TS Hours'])
 )
+#Condition: If night shift ratio is greater than 2/3 then flag as Y otherwise N
 timesheet_df['Perm_Night_Ratio_Flag'] = np.where(
     timesheet_df['Night Shift Ratio'] > (2/3),
     'Y',
@@ -600,20 +675,10 @@ timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member
 
 
 
-# Need to pull in the pay rates
-
-
+# Pull in the pay rates
 
 payrates_df = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\2025.08.19 - Employee classification & rate.xlsx", sheet_name='Staff List_FY level min rates')
 
-# where employee ID matches and between data range,  pull in the relevant pay rates
-# timesheet_df['Employee ID Consolidated'] and timseheet_df['Estimated Pay Date']
-
-
-# --- Assumptions ---
-# payrates_df has columns: ['Employee ID', 'Start Date', 'End Date', 'Rate_Hourly Day', ...]
-# timesheet_df has columns: ['Employee ID Consolidated', 'Estimated Pay Date', ...]
-# Dates are datetime dtype (if not, we’ll convert).
 
 # Ensure dates are datetime
 payrates_df['FY Starting'] = pd.to_datetime(payrates_df['FY Starting'])
@@ -626,13 +691,13 @@ timesheet_df['Employee ID Consolidated'] = timesheet_df['Employee ID Consolidate
 payrates_df['Employee ID'] = payrates_df['Employee ID'].astype(str).str.strip()
 
 
-# pull in Allied Pay Rate	Award Pay Rate
-
 
 
 # Select only the needed columns from payrates_df
 payrates_subset = payrates_df[
     ['Employee ID', 'FY Starting', 'FY Ending', 
+     'Broken Shift Allowance Rate',
+     'First Aid Allowance Rate',
      'Paid Minimum Hourly Pay Rate',
     'Award Minimum Hourly Pay Rate',
     'Award Night Pay Rate',
@@ -667,9 +732,62 @@ timesheet_df = timesheet_df[
     (timesheet_df['Estimated Pay Date'] <= timesheet_df['FY Ending'])
 ]
 
+# 1) Remove perfect duplicates
+print('Perfect duplicates check:')
+# Check if your dataframe has perfect duplicates
+print(len(timesheet_df), len(timesheet_df.drop_duplicates()))
+# If yes, drop them
+timesheet_df = timesheet_df.drop_duplicates()
+
+
+
+# Pull in correct Broken Shift Allowance Rate
+timesheet_df['Broken Shift Allowance Amount'] = np.where(
+    timesheet_df['Broken_Shift_Flag'] == 'Y',
+    timesheet_df['Broken Shift Allowance Rate'],
+    0
+)
+
+
+# === Start of First Aid Allowance Calculation ===
+# First Aid Allowance is payable at $7.33 per shift up to a maximum of $36.46 per week or approximately 5 shifts per week.
+#All employees in review hold a current Senior First Aid Certificate (also known as Provide First Aid or Workplace First Aid)
+
+# Need to count the total shifts witin a Week Ending
+# timesheet_df['Shift_count_weekly'] = timesheet_df.groupby(
+#     ['Employee ID Consolidated', 'Week Ending']
+# )['Total TS Hours Adj'].transform('count')
+
+#  Cumulative shift count within the week
+timesheet_df['Shift_count_cum'] = timesheet_df.groupby(
+    ['Employee ID Consolidated', 'Week Ending']
+).cumcount() + 1
+
+# Condition: Cut off after 5 shifts within a week
+timesheet_df['First Aid Allowance Flag'] =np.where(
+    timesheet_df['Shift_count_cum'] <= 5,
+    'Y',
+    'N'
+)
+
+# Amount due per shift for the allowance
+# Condtion:  Where Flag is Y, Gap to next shift is 0.5 or greater and Broken Shift Flag is no in order to avoid counting one shift as two
+# Also added in a Gap_Label for instances where it is the last shift in the review period and thus we won't have a shift gap
+# Result: First Aid Allowance Rate per shift
+timesheet_df['First Aid Allowance Amount'] = np.where(
+    (timesheet_df['First Aid Allowance Flag'] == 'Y') & 
+    (
+        (timesheet_df['Gap_to_Next_Shift_Hours'] >= 0.5) |
+        (timesheet_df['Gap_Label'] == "Last Shift in Review")
+    ) &
+    (timesheet_df['Broken_Shift_Flag'] == 'N'),
+    timesheet_df['First Aid Allowance Rate'],
+    0
+)
+
 
 # columns to be used in dollar amount calculations
-
+# 
 timesheet_df['Night Amount (Award)'] = np.where(
     timesheet_df['Perm_Night_Ratio_Flag'] == 'Y',
     (timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Perm Night Pay Rate']).round(2),
@@ -680,22 +798,34 @@ timesheet_df['Night Amount (Award)'] = np.where(
 )
 )
 
-
+# Day Amount (Award) calculation
 timesheet_df['Day Amount (Award)'] = (
     (timesheet_df['Day TS Hours Adj'] * timesheet_df['Award Minimum Hourly Pay Rate']).round(2)
 )
 
+# Saturday Amount (Award) calculation
+# Condition: Saturday Penality flag is Y and Breaks between work periods Top Up Flag is N
 timesheet_df['Saturday Amount (Award)'] = np.where(
     (timesheet_df['Saturday_Penality_flag'] == 'Y') &
-    (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
+    (timesheet_df['Breaks between work periods Top Up Flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] =='N'),
     (timesheet_df['Saturday TS Hours'] * timesheet_df['Award Saturday Pay Rate']).round(2),
     0
 )
 
+# Sunday Amount (Award) calculation
+# Condition: Sunday Penality flag is Y and PH Flag is N
 timesheet_df['Sunday Amount (Award)'] = np.where(
-    timesheet_df['Sunday_Penality_flag'] == 'Y',
+    (timesheet_df['Sunday_Penality_flag'] == 'Y') & (timesheet_df['Public_Holiday_flag'] =='N'),
     (timesheet_df['Sunday TS Hours'] * timesheet_df['Award Sunday Pay Rate']).round(2),
     0
+)
+
+timesheet_df['Public Holiday Amount (Award)'] =np.where(
+    (timesheet_df['Public_Holiday_flag'] =='Y'),
+    (timesheet_df['PH TS Hours'] * timesheet_df['Award Public Holiday Pay Rate']).round(2),
+    0
+
 )
 
 timesheet_df['OT First 2 Hours Amount (Award)'] = np.where(
@@ -723,6 +853,7 @@ timesheet_df['Total Amount (Award)'] = (
     timesheet_df['Day Amount (Award)'] +
     timesheet_df['Saturday Amount (Award)'] +
     timesheet_df['Sunday Amount (Award)'] +
+    timesheet_df['Public Holiday Amount (Award)'] +
     timesheet_df['OT First 2 Hours Amount (Award)'] +
     timesheet_df['OT Post 2 Hours Amount (Award)'] +
     timesheet_df['Breaks between work periods - Amount (Award)']
@@ -789,6 +920,8 @@ column_order = [
 'Timesheet Employee Comment',
 'Difference in Hours',
 'Weekday',
+'First Aid Allowance Amount',
+"Public_Holiday_flag",
 'Saturday_Penality_flag',
 'Sunday_Penality_flag',
 'Day TS Hours',
@@ -799,6 +932,7 @@ column_order = [
 'Perm_Night_Ratio_Flag',
 'Saturday TS Hours',
 'Sunday TS Hours',
+'PH TS Hours',
 'Total TS Hours',
 'Total TS Hours Adj',
 'Week Number',
@@ -847,6 +981,7 @@ column_order = [
 'Day Amount (Award)',
 'Saturday Amount (Award)',
 'Sunday Amount (Award)',
+'Public Holiday Amount (Award)',
 'OT First 2 Hours Amount (Award)',
 'OT Post 2 Hours Amount (Award)',
 'Breaks between work periods - Amount (Award)',
