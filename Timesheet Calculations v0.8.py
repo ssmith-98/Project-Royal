@@ -206,18 +206,6 @@ timesheet_df['Saturday TS Hours'] = (timesheet_df['Saturday TS Hours'] - timeshe
 timesheet_df['Sunday TS Hours'] = (timesheet_df['Sunday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
 
 
-
-
-
-
-
-# Need to add shift count feature per day so that we can calculate the below pay rule: 
-# Broken Shift Minimum 3 Hours	  
-# An employee who works broken shifts is entitled to be paid for at least 3 hours for each period of duty on a broken shift even if the employee works for a shorter time.
-
-# Pivot table seems to indicate that broken shifts exist but no instance of less than 3 hours on split shifts
-
-
 # Step 1: Calculate Total TS Hours Adj
 timesheet_df['Total TS Hours'] = timesheet_df['Night TS Hours'] + timesheet_df['Day TS Hours'] + timesheet_df['Saturday TS Hours'] + timesheet_df['Sunday TS Hours'] + timesheet_df['PH TS Hours']
 
@@ -455,7 +443,8 @@ timesheet_df['Breaks between work periods Top Up Flag'] = (
 # Calculate Breaks between work periods - Hours
 # If breach flag is Y then the current shift hours are payable as top up hours
 timesheet_df['Breaks between work periods - Hours'] = np.where(
-    timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
+    (timesheet_df['Breaks between work periods Top Up Flag'] == 'Y') &
+    (timesheet_df['Public_Holiday_flag'] != 'Y'),
     timesheet_df['Total TS Hours Adj'],
     0
 )
@@ -587,7 +576,6 @@ timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
     timesheet_df['OT First 2 Hours (Weekly)'],
     0
 )
-
 timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
     (timesheet_df['Roster OT Flag'] == 'Y') &
     (timesheet_df['Sunday_Penality_flag'] == 'N') &
@@ -595,10 +583,6 @@ timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
     timesheet_df['OT Post 2 Hours (Weekly)'],
     0
 )
-
-
-
-
 timesheet_df['OT First 2 Hours (Daily)'] = np.where(
     (timesheet_df['Daily OT Flag'] == 'Y') &
     (timesheet_df['Sunday_Penality_flag'] == 'N') &
@@ -614,7 +598,7 @@ timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
     timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'],
     0
 )
-
+# ensure no doubling up of OT Hours and Sunday and PH hours
 timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
     (timesheet_df['Roster OT Flag'] == 'Y') &
     (timesheet_df['Sunday_Penality_flag'] == 'N') &
@@ -674,7 +658,7 @@ timesheet_df = timesheet_df.drop_duplicates(subset=['Timesheet ID', 'Team member
 # === End of Night, Night (Perm) and Day TS Hours  ===
 
 
-
+# === Start of Merge for Payrates with Timesheet dataframe ===
 # Pull in the pay rates
 
 payrates_df = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\2025.08.19 - Employee classification & rate.xlsx", sheet_name='Staff List_FY level min rates')
@@ -739,6 +723,16 @@ print(len(timesheet_df), len(timesheet_df.drop_duplicates()))
 # If yes, drop them
 timesheet_df = timesheet_df.drop_duplicates()
 
+# === End of Merge for Payrates with timesheet dataframe
+
+
+
+
+
+# === Start of First Aid and Broken Shift Allowance Calculations ===
+# First Aid Allowance is payable at $7.33 per shift up to a maximum of $36.46 per week or approximately 5 shifts per week.
+#All employees in review hold a current Senior First Aid Certificate (also known as Provide First Aid or Workplace First Aid)
+
 
 
 # Pull in correct Broken Shift Allowance Rate
@@ -747,16 +741,6 @@ timesheet_df['Broken Shift Allowance Amount'] = np.where(
     timesheet_df['Broken Shift Allowance Rate'],
     0
 )
-
-
-# === Start of First Aid Allowance Calculation ===
-# First Aid Allowance is payable at $7.33 per shift up to a maximum of $36.46 per week or approximately 5 shifts per week.
-#All employees in review hold a current Senior First Aid Certificate (also known as Provide First Aid or Workplace First Aid)
-
-# Need to count the total shifts witin a Week Ending
-# timesheet_df['Shift_count_weekly'] = timesheet_df.groupby(
-#     ['Employee ID Consolidated', 'Week Ending']
-# )['Total TS Hours Adj'].transform('count')
 
 #  Cumulative shift count within the week
 timesheet_df['Shift_count_cum'] = timesheet_df.groupby(
@@ -784,10 +768,12 @@ timesheet_df['First Aid Allowance Amount'] = np.where(
     timesheet_df['First Aid Allowance Rate'],
     0
 )
+# === End of First Aid and Broken Shift Calcs
 
 
-# columns to be used in dollar amount calculations
-# 
+
+
+# Night Amount due as per award perm nights and none perm nights
 timesheet_df['Night Amount (Award)'] = np.where(
     timesheet_df['Perm_Night_Ratio_Flag'] == 'Y',
     (timesheet_df['Night TS Hours Adj'] * timesheet_df['Award Perm Night Pay Rate']).round(2),
@@ -821,13 +807,14 @@ timesheet_df['Sunday Amount (Award)'] = np.where(
     0
 )
 
+# PH Amount Calculation
 timesheet_df['Public Holiday Amount (Award)'] =np.where(
     (timesheet_df['Public_Holiday_flag'] =='Y'),
     (timesheet_df['PH TS Hours'] * timesheet_df['Award Public Holiday Pay Rate']).round(2),
     0
 
 )
-
+# First 2 hours OT Calculation
 timesheet_df['OT First 2 Hours Amount (Award)'] = np.where(
     (timesheet_df['OT First 2 Hours'] > 0) &
     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
@@ -835,12 +822,14 @@ timesheet_df['OT First 2 Hours Amount (Award)'] = np.where(
     0
 )
 
+# Post First 2 hours OT Calc
 timesheet_df['OT Post 2 Hours Amount (Award)'] = np.where(
     (timesheet_df['OT Post 2 Hours'] > 0) &
     (timesheet_df['Breaks between work periods Top Up Flag'] == 'N'),
     (timesheet_df['OT Post 2 Hours'] * timesheet_df['Award Overtime After 2 Hours']).round(2),
     0
 )
+
 
 timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
     timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
@@ -855,8 +844,8 @@ timesheet_df['Total Amount (Award)'] = (
     timesheet_df['Sunday Amount (Award)'] +
     timesheet_df['Public Holiday Amount (Award)'] +
     timesheet_df['OT First 2 Hours Amount (Award)'] +
-    timesheet_df['OT Post 2 Hours Amount (Award)'] +
-    timesheet_df['Breaks between work periods - Amount (Award)']
+    timesheet_df['OT Post 2 Hours Amount (Award)'] 
+    #+ timesheet_df['Breaks between work periods - Amount (Award)']
 ).round(2)
 
 
@@ -920,7 +909,6 @@ column_order = [
 'Timesheet Employee Comment',
 'Difference in Hours',
 'Weekday',
-'First Aid Allowance Amount',
 "Public_Holiday_flag",
 'Saturday_Penality_flag',
 'Sunday_Penality_flag',
@@ -984,8 +972,9 @@ column_order = [
 'Public Holiday Amount (Award)',
 'OT First 2 Hours Amount (Award)',
 'OT Post 2 Hours Amount (Award)',
-'Breaks between work periods - Amount (Award)',
 'Total Amount (Award)',
+'First Aid Allowance Amount',
+'Breaks between work periods - Amount (Award)',
 'Broken Shift Allowance Amount',
 ]
 # Reorder columns
