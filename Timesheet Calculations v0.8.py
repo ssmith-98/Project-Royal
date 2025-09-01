@@ -987,22 +987,20 @@ timesheet_df = timesheet_df[column_order]
 timesheet_df.to_excel("Timesheet_clean.xlsx", sheet_name='timesheet', index=False)
 
 
+### === End of Timesheet standalone Calculations ===
 
 
 
 
 
-### !!!!!!!! OT WWITH LEAVE CALCS !!!!!!!!!!!!!!!!! ###
-
-
-
+### === Start of Overtime Calculations Inclusive of Leave
 
 
 # Create new DF so we can group weekly by EMPLID and Pay Date rather than Roster Ending
 timesheet_df_weekly_for_Leave = timesheet_df
 
 
-# Step 3: Build EmpID_PayDay_Key (EmpID + Pay Date)
+# Build EmpID_PayDay_Key (EmpID + Pay Date)
 # Ensure it's datetime
 timesheet_df_weekly_for_Leave['Estimated Pay Date'] = pd.to_datetime(
     timesheet_df_weekly_for_Leave['Estimated Pay Date'], errors='coerce'
@@ -1058,6 +1056,9 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
     #    'TS_TimeOnly_End', 'Employee ID Consolidated', 'Difference in Hours',
        'Day TS Hours Adj' : 'sum',
        'Night TS Hours Adj' : 'sum', 
+       'PH TS Hours' : 'sum',
+       'Saturday TS Hours' : 'sum',
+       'Sunday TS Hours' : 'sum',
     #    'DOTW', 'Weekday',
     #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
        'Total TS Hours Adj' : 'sum',
@@ -1068,10 +1069,13 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
        'Day Amount (Award)' : 'sum',
         'Saturday Amount (Award)' : 'sum',
         'Sunday Amount (Award)' : 'sum',
+        'Public Holiday Amount (Award)' : 'sum',
+
         'OT First 2 Hours Amount (Award)' : 'sum',
         'OT Post 2 Hours Amount (Award)' : 'sum',
         'Breaks between work periods - Amount (Award)' : 'sum',
         'Total Amount (Award)' : 'sum',
+        'First Aid Allowance Amount' : 'sum',
         'Broken Shift Allowance Amount' : 'sum',
    
 
