@@ -830,7 +830,7 @@ timesheet_df['OT Post 2 Hours Amount (Award)'] = np.where(
     0
 )
 
-
+# Break between work periods breach - Amount
 timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
     timesheet_df['Breaks between work periods Top Up Flag'] == 'Y',
     (timesheet_df['Breaks between work periods - Hours'] * (timesheet_df['Award Minimum Hourly Pay Rate']*2)).round(2),
@@ -845,7 +845,7 @@ timesheet_df['Total Amount (Award)'] = (
     timesheet_df['Public Holiday Amount (Award)'] +
     timesheet_df['OT First 2 Hours Amount (Award)'] +
     timesheet_df['OT Post 2 Hours Amount (Award)'] 
-    #+ timesheet_df['Breaks between work periods - Amount (Award)']
+    + timesheet_df['Breaks between work periods - Amount (Award)']
 ).round(2)
 
 
@@ -972,9 +972,10 @@ column_order = [
 'Public Holiday Amount (Award)',
 'OT First 2 Hours Amount (Award)',
 'OT Post 2 Hours Amount (Award)',
+'Breaks between work periods - Amount (Award)',
 'Total Amount (Award)',
 'First Aid Allowance Amount',
-'Breaks between work periods - Amount (Award)',
+
 'Broken Shift Allowance Amount',
 ]
 # Reorder columns
