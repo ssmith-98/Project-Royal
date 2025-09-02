@@ -361,7 +361,8 @@ df.drop(index=indices_to_drop, inplace=True)
 patterns = {
     "Earnings and Hours": r"^\s*earnings\s+and\s+hours\s*$",
     "Qty": r"^\s*qty\s*$",
-    "Rate": r"^\s*rate\s*$",
+    #"Rate": r"^\s*rate\s*$",
+    "Rate": r"Rate\s*$",
     "Current": r"^\s*current\s*$"
 }
 
@@ -595,7 +596,7 @@ grouped_df = df_combined.groupby('EmpID_PayDay_Key').agg({
 'Rate_Holiday Salary' : 'first',
 'Rate_Hourly Day' : 'first',
 'Rate_Hourly Night' : 'first',
-'Rate_Hourly Public Holiday' : 'first',
+#'Rate_Hourly Public Holiday' : 'first',
 'Rate_Hourly Saturday' : 'first',
 'Rate_Hourly Sunday' : 'first',
 'Rate_Leave W/o Pay' : 'first',
@@ -625,7 +626,7 @@ grouped_df = df_combined.groupby('EmpID_PayDay_Key').agg({
 'Qty_Holiday Salary' : 'sum',
 'Qty_Hourly Day' : 'sum',
 'Qty_Hourly Night' : 'sum',
-'Qty_Hourly Public Holiday' : 'sum',
+#'Qty_Hourly Public Holiday' : 'sum',
 'Qty_Hourly Saturday' : 'sum',
 'Qty_Hourly Sunday' : 'sum',
 'Qty_Leave W/o Pay' : 'sum',
@@ -656,7 +657,7 @@ grouped_df = df_combined.groupby('EmpID_PayDay_Key').agg({
 'Current_Holiday Salary' : 'sum',
 'Current_Hourly Day' : 'sum',
 'Current_Hourly Night' : 'sum',
-'Current_Hourly Public Holiday' : 'sum',
+#'Current_Hourly Public Holiday' : 'sum',
 'Current_Hourly Saturday' : 'sum',
 'Current_Hourly Sunday' : 'sum',
 'Current_Leave W/o Pay' : 'sum',
@@ -728,9 +729,9 @@ ordered_columns = [
 'Rate_Hourly Night',
 'Qty_Hourly Night',
 'Current_Hourly Night',
-'Rate_Hourly Public Holiday',
-'Qty_Hourly Public Holiday',
-'Current_Hourly Public Holiday',
+#'Rate_Hourly Public Holiday',
+#'Qty_Hourly Public Holiday',
+#'Current_Hourly Public Holiday',
 'Rate_Hourly Saturday',
 'Qty_Hourly Saturday',
 'Current_Hourly Saturday',
@@ -907,7 +908,7 @@ grouped_df['Qty_Holiday Hourly'] = grouped_df['Current_Holiday Hourly'] / groupe
 grouped_df['Qty_Holiday Salary'] = grouped_df['Current_Holiday Salary'] / grouped_df['Rate_Holiday Salary']
 grouped_df['Qty_Hourly Day'] = grouped_df['Current_Hourly Day'] / grouped_df['Rate_Hourly Day']
 grouped_df['Qty_Hourly Night'] = grouped_df['Current_Hourly Night'] / grouped_df['Rate_Hourly Night']
-grouped_df['Qty_Hourly Public Holiday'] = grouped_df['Current_Public Holiday Hourly'] / grouped_df['Rate_Public Holiday Hourly']
+#grouped_df['Qty_Hourly Public Holiday'] = grouped_df['Current_Public Holiday Hourly'] / grouped_df['Rate_Public Holiday Hourly']
 grouped_df['Qty_Hourly Saturday'] = grouped_df['Current_Hourly Saturday'] / grouped_df['Rate_Hourly Saturday']
 grouped_df['Qty_Hourly Sunday'] = grouped_df['Current_Hourly Sunday'] / grouped_df['Rate_Hourly Sunday']
 
@@ -917,7 +918,7 @@ grouped_df['Qty_Sick Leave Salary'] = grouped_df['Current_Sick Leave Salary'] / 
 grouped_df['Qty_Personal Hourly'] = grouped_df['Current_Personal Hourly'] / grouped_df['Rate_Personal Hourly']
 grouped_df['Qty_Personal Salary'] = grouped_df['Current_Personal Salary'] / grouped_df['Rate_Personal Salary']
 
-grouped_df['Qty_Public Holiday Hourly'] = grouped_df['Current_Holiday Hourly'] / grouped_df['Rate_Holiday Hourly']
+grouped_df['Qty_Public Holiday Hourly'] = grouped_df['Current_Public Holiday Hourly'] / grouped_df['Rate_Public Holiday Hourly']
 
 grouped_df['Qty_Public Holiday Not W...'] = grouped_df['Current_Public Holiday Not W...'] / grouped_df['Rate_Public Holiday Not W...']
 grouped_df['Qty_Annual Leave'] = grouped_df['Current_Annual Leave'] / grouped_df['Rate_Annual Leave']
@@ -955,9 +956,9 @@ columns_to_keep = [
 'Qty_Hourly Night',
 'Rate_Hourly Night',
 'Current_Hourly Night',
-'Qty_Hourly Public Holiday',
-'Rate_Hourly Public Holiday',
-'Current_Hourly Public Holiday',
+#'Qty_Hourly Public Holiday',
+#'Rate_Hourly Public Holiday',
+#'Current_Hourly Public Holiday',
 'Qty_Hourly Saturday',
 'Rate_Hourly Saturday',
 'Current_Hourly Saturday',
@@ -971,11 +972,20 @@ columns_to_keep = [
 'Rate_Personal Salary',
 'Current_Personal Salary',
 'Qty_Public Holiday Hourly',
+
+
 'Rate_Public Holiday Hourly',
 'Current_Public Holiday Hourly',
+
+
 'Qty_Public Holiday Not W...',
 'Rate_Public Holiday Not W...',
 'Current_Public Holiday Not W...',
+'Rate_First Aid Allowance',
+'Qty_First Aid Allowance',
+'Current_First Aid Allowance',
+
+
 'Qty_Salary',
 'Rate_Salary',
 'Current_Salary',
