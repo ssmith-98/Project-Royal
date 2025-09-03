@@ -355,7 +355,7 @@ timesheet_df['Roster Period Total Hours'] = timesheet_df.groupby(
 
 
 
-timesheet_df.to_csv('line358.csv')
+
 
 # Create full datetime columns using combine
 timesheet_df['Start_dt'] = timesheet_df.apply(
@@ -386,7 +386,7 @@ timesheet_df = timesheet_df.drop_duplicates(
 
 
 
-timesheet_df.to_csv('line389.csv')
+
 
 # Identify next shift start and end times per employee
 timesheet_df['Next_Start_dt'] = (
@@ -857,7 +857,48 @@ timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
     0
 )
 
-timesheet_df['Total Amount (Award)'] = (
+
+# Zero out hours in shift that are recorded in Day, Night, Saturday and Sunday where hours exists in 'Breaks between work periods - Hours'
+# Added to avoid confusion when client reviews file can be commented out if we prefer
+timesheet_df['Day TS Hours'] = np.where(
+    timesheet_df['Breaks between work periods - Hours'] > 0,
+    0,
+    timesheet_df['Day TS Hours']
+)
+
+timesheet_df['Day TS Hours Adj'] = np.where(
+    timesheet_df['Breaks between work periods - Hours'] > 0,
+    0,
+    timesheet_df['Day TS Hours Adj']
+)
+
+timesheet_df['Night TS Hours'] = np.where(
+    timesheet_df['Breaks between work periods - Hours'] > 0,
+    0,
+    timesheet_df['Night TS Hours'] 
+)
+
+
+timesheet_df['Night TS Hours Adj'] = np.where(
+     timesheet_df['Breaks between work periods - Hours'] > 0,
+    0,
+    timesheet_df['Night TS Hours Adj']
+)
+
+timesheet_df['Saturday TS Hours'] = np.where(
+    timesheet_df['Breaks between work periods - Hours'] > 0,
+    0,
+    timesheet_df['Saturday TS Hours']
+)
+
+timesheet_df['Sunday TS Hours'] = np.where(
+    timesheet_df['Breaks between work periods - Hours'] > 0,
+    0,
+    timesheet_df['Sunday TS Hours']
+)
+
+
+timesheet_df['Total Amount (Award)'] = ( 
     timesheet_df['Night Amount (Award)'] +
     timesheet_df['Day Amount (Award)'] +
     timesheet_df['Saturday Amount (Award)'] +
@@ -927,7 +968,12 @@ column_order = [
 'Timesheet area',
 'Timesheet leave policy',
 'Timesheet Employee Comment',
-'Difference in Hours',
+'Week Number',
+'Roster Starting',
+'Week Ending',
+'Roster Ending',
+'Estimated Pay Date',
+#'Difference in Hours',
 'Weekday',
 "Public_Holiday_flag",
 'Saturday_Penality_flag',
@@ -940,27 +986,22 @@ column_order = [
 'Perm_Night_Ratio_Flag',
 'Saturday TS Hours',
 'Sunday TS Hours',
+'Breaks between work periods - Hours',
 'PH TS Hours',
 'Total TS Hours',
 'Total TS Hours Adj',
-'Week Number',
-'Roster Starting',
-'Week Ending',
-'Roster Ending',
-'Estimated Pay Date',
-#'Weekly Total Hours',
 'Weekly Cumulative Hours',
 'Roster Cumulative Hours',
+#'Weekly Total Hours',
 #'Roster Period Total Hours',
 'Next_Start_dt',
 'Gap_to_Next_Shift_Hours',
 #'Shift_Duration_Hours',
 'Next_Shift_Duration_Hours',
 'Broken_Shift_Flag',
-
 'Breaks between work periods Breach',
 'Breaks between work periods Top Up Flag',
-'Breaks between work periods - Hours',
+#'Breaks between work periods - Hours',
 
 
 'Daily OT Flag',
@@ -1005,8 +1046,8 @@ timesheet_df = timesheet_df[column_order]
 
 
 # Preview
-timesheet_df.to_excel("Timesheet_clean.xlsx", sheet_name='timesheet', index=False)
-
+#timesheet_df.to_excel("Timesheet_clean.xlsx", sheet_name='timesheet', index=False)
+timesheet_df.to_excel("Timesheet_Pre_Payroll_Join.xlsx", sheet_name='timesheet', index=False)
 
 ### === End of Timesheet standalone Calculations ===
 
@@ -1047,16 +1088,13 @@ timesheet_df_weekly_for_Leave['Week Number'] = timesheet_df_weekly_for_Leave['Da
 )
 
 
-
+# Create Unique key on Employee Id, Roster Ending and Week Number for later aggregation
 timesheet_df_weekly_for_Leave['EmpID_Week_Key'] = (
     timesheet_df_weekly_for_Leave['Employee ID Consolidated'].astype(str) + "_" +
     timesheet_df_weekly_for_Leave['Roster Ending'].dt.strftime("%Y-%m-%d") + "_W" +
     timesheet_df_weekly_for_Leave['Week Number'].astype(str)
 )
 
-print(timesheet_df_weekly_for_Leave['Week Number'].value_counts())
-
-timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave_preGroup.csv')
 
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Week_Key').agg({
     'EmpID_PayDay_Key' : 'first',
@@ -1100,28 +1138,14 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
         'Total Amount (Award)' : 'sum',
         'First Aid Allowance Amount' : 'sum',
         'Broken Shift Allowance Amount' : 'sum',
-   
-
-       # 'Roster Ending' : 'first', 
-      # 'Roster Period Total Hours' : 'first',
-
-       #'rolling_1_weeks_hours', 
-       #'Roster Ending (1w)' : 'last', 
-
-
-
-
-       #'rolling_2_weeks_hours',
-       #'Roster Ending (2w)' : 'last'
-
-
 
 })
 
-timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave_preMerge.csv')
 
+# Read in Paystub data into Dataframe
 payroll_data = pd.read_excel(payroll_data)
 
+# Left Join timesheet weekly data with payroll data using Employee and Pay Day Key
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.merge(payroll_data,
                                    on=['EmpID_PayDay_Key'],
                                    how='left')
@@ -1226,11 +1250,11 @@ timesheet_df_weekly_for_Leave['Total Leave Hours'] = timesheet_df_weekly_for_Lea
 
 timesheet_df_weekly_for_Leave['Total Leave Hours'] = (
     timesheet_df_weekly_for_Leave[['Qty_Holiday Hourly', 'Qty_Annual Leave', 'Qty_Sick Leave Hourly']]
-    #timesheet_df_weekly_for_Leave[['Qty_Holiday Salary', 'Qty_Holiday Hourly', 'Qty_Annual Leave']]
     .fillna(0)
     .sum(axis=1)
 )
 
+# Used for grouping later
 timesheet_df_weekly_for_Leave['Fortnight_Key'] = (
     timesheet_df_weekly_for_Leave['Employee ID Consolidated'].astype(str) + '_' +
     timesheet_df_weekly_for_Leave['Roster Ending'].astype(str)
@@ -1252,6 +1276,7 @@ def calculate_effective_hours(df):
         df['Total Leave Hours']
     )
     
+    # 
     df['Effective_Total'] = df['Total TS Hours Adj'] + df['Effective_Leave']
     return df
 
@@ -1302,7 +1327,8 @@ def calculate_overtime(group):
 timesheet_df_weekly_for_Leave = calculate_effective_hours(timesheet_df_weekly_for_Leave)
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby(['Fortnight_Key','Roster Ending'], group_keys=False).apply(calculate_overtime)
 
-
+# Rename Weekly OT Hours to Weekly OT Hours (Excl Leave)
+# Leave data is only provided in weekly form and not on days taken
 timesheet_df_weekly_for_Leave['Weekly OT Hours (Excl Leave)'] = timesheet_df_weekly_for_Leave['Weekly OT Hours'] 
 
 
@@ -1313,11 +1339,16 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.drop(columns=[col 
 
 
 # Calculate if any difference between prior calculated OT and OT Inclusive of Leave
+# Further Calculation logic can follow where we look at where to apply the addition OT i.e. First 2 Hours or Post First Two hours
+# Revisit this later if required - 3/09/2025
 timesheet_df_weekly_for_Leave['Difference between  Weekly OT (Excl Leave) and Weekly OT (Incl Leave)'] =  timesheet_df_weekly_for_Leave['Weekly_Overtime_Hours (Incl Leave)'] - timesheet_df_weekly_for_Leave['Weekly OT Hours (Excl Leave)'] 
 
 
 
 
+
+
+# Define pairs of quantity and rate columns that represent different types of worked hours
 pairs = [
     ('Qty_Hourly Day',            'Rate_Hourly Day'),
     ('Qty_Hourly Night',          'Rate_Hourly Night'),
@@ -1326,31 +1357,47 @@ pairs = [
     ('Qty_Hourly Sunday',         'Rate_Hourly Sunday'),
 ]
 
-# Helper to coerce a column to numeric safely (handles $, commas, blanks)
+# Helper function: safely convert a column (Series) or scalar to numeric
+# - Handles strings with $, commas, or blanks
+# - Converts invalid or missing values to 0
 def _num(series_or_scalar):
     if isinstance(series_or_scalar, pd.Series):
+        # Convert values to string, strip out $ and commas, convert to float
         s = series_or_scalar.astype(str).str.replace(r'[\$,]', '', regex=True)
         return pd.to_numeric(s, errors='coerce').fillna(0.0)
     else:
-        # if the column doesn't exist and we got the default scalar 0
+        # If the column doesn’t exist, get() will return the default scalar 0
+        # In that case just return 0.0
         return 0.0
 
-# Start with a zero Series aligned to the DataFrame index
+# Create a running total Series initialised to 0.0, aligned to the DataFrame index
+# This ensures that calculations for each row are accumulated correctly
 total = pd.Series(0.0, index=timesheet_df_weekly_for_Leave.index)
 
+# Loop through each pair of (quantity column, rate column)
 for qty_col, rate_col in pairs:
+    # Get the quantity column, or 0 if it doesn’t exist, and convert to numeric
     q = _num(timesheet_df_weekly_for_Leave.get(qty_col, 0))
+    # Get the rate column, or 0 if it doesn’t exist, and convert to numeric
     r = _num(timesheet_df_weekly_for_Leave.get(rate_col, 0))
+    # Multiply quantity * rate and add to the running total
     total += q * r
 
-timesheet_df_weekly_for_Leave['Total Allied Weekly Pay'] = total.round(2)
+# Allied OTE and Penality hours, OT never paid so not included 
+timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Hours'] = total.round(2)
 
 
+# Total Amount (Award) = Day + Night + Sat + Sunday + PH + OT First 2 + OT Post First 2 + Breaks between work period penality 
+# Allied Oridnary Hours and Penality Hours = Day + Night + Saturday + Sunday + PH 
+# Disrepancy for Pay as per Award Vs Actual payments made by Allied at higher rates but with no OT calcualtions 
+timesheet_df_weekly_for_Leave['Discrepancy_Oridnary_Hours_and_OverTime'] = timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Hours'] -  timesheet_df_weekly_for_Leave['Total Amount (Award)']
 
-timesheet_df_weekly_for_Leave['Discrepancy_Oridnary_Hours_and_OverTime'] = timesheet_df_weekly_for_Leave['Total Allied Weekly Pay'] -  timesheet_df_weekly_for_Leave['Total Amount (Award)']
-
+# Difference between
 timesheet_df_weekly_for_Leave['Discrepancy_First_Aid_Allowance'] = timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] - timesheet_df_weekly_for_Leave['First Aid Allowance Amount']
 
+# Allied made no payments for Broken Shift Allowance so Disrepancy is exactly equal to our calcs
+timesheet_df_weekly_for_Leave['Discrepancy_Broken_Shift_Allowance_Amount'] = timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount']
 
-timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
 
+#timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
+timesheet_df_weekly_for_Leave.to_excel('SW_Payment_Calcs_As_Per_Award_Vs_ Allied_Actual_Pay.xlsx', sheet_name='Award_Vs_Actuals') 
