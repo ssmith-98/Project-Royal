@@ -304,8 +304,15 @@ timesheet_df['Estimated Pay Date'] = np.where(
 )
 
 # === Handle Tuesday exceptions (e.g. Christmas Eve/NYE) ===
-exceptions = [pd.Timestamp('2024-12-24'), pd.Timestamp('2024-12-31')]
-timesheet_df.loc[timesheet_df['Estimated Pay Date'].isin(exceptions), 'Estimated Pay Date'] -= pd.Timedelta(days=1)
+# Handle exceptions: adjust pay dates that fall on Christmas Day or New Year's Day
+exceptions = [pd.Timestamp('2024-12-25'), pd.Timestamp('2025-01-01')]
+timesheet_df.loc[
+    timesheet_df['Estimated Pay Date'].isin(exceptions),
+    'Estimated Pay Date'
+] -= pd.Timedelta(days=1)
+
+
+
 
 # === End of Roster and Pay Date Calculations ===
 
