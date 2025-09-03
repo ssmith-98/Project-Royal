@@ -324,26 +324,38 @@ timesheet_df['Weekly Total Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Week Ending']
 )['Total TS Hours Adj'].transform('sum')
 
-# 3) Weekly cumulative hours per employee-week (sorted within the week)
+
+# # 3) Weekly cumulative hours per employee-week (sorted within the week)
+# timesheet_df = timesheet_df.sort_values(
+#     ['Employee ID Consolidated', 'Week Ending', 'Timesheet Start Time']
+
+# )
+
+
+
+# Sort so that cumulative sums follow the actual worked order
 timesheet_df = timesheet_df.sort_values(
-    ['Employee ID Consolidated', 'Week Ending', 'Timesheet Start Time']
+    by=['Employee ID Consolidated', 'Week Ending', 'Timesheet Start Time', 'Timesheet End Time']
 )
-# Added to determine OT eligibility point in time
+
+# Weekly cumulative hours
 timesheet_df['Weekly Cumulative Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Week Ending']
 )['Total TS Hours Adj'].cumsum()
 
-
-# Added to determine OT eligibility point in time
+# Roster cumulative hours
 timesheet_df['Roster Cumulative Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Roster Ending']
 )['Total TS Hours Adj'].cumsum()
-
 # Added for OT calculations
 timesheet_df['Roster Period Total Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Roster Ending']
 )['Total TS Hours Adj'].transform('sum')
 
+
+
+
+timesheet_df.to_csv('line358.csv')
 
 # Create full datetime columns using combine
 timesheet_df['Start_dt'] = timesheet_df.apply(
@@ -354,26 +366,31 @@ timesheet_df['End_dt'] = timesheet_df.apply(
 )
 
 
+
+
 # Sort by employee and start datetime
 
 
-timesheet_df = timesheet_df.sort_values(by=['Employee ID Consolidated', 'Shift Start Time']).reset_index(drop=True)
+timesheet_df = timesheet_df.sort_values(by=['Employee ID Consolidated', 'Timesheet Start Time']).reset_index(drop=True)
 
 
 
 # === Start of Broken Shift and Break Between Work Period Calculations ===
 
-# Remove exact duplicates of Employee ID and Shift Start Time to avoid issues with gap calculations
+# Remove exact duplicates of Employee ID and Timesheet Start Time to avoid issues with gap calculations
 timesheet_df = timesheet_df.drop_duplicates(
-    subset=['Employee ID Consolidated', 'Shift Start Time']
+    subset=['Employee ID Consolidated', 'Timesheet Start Time']
 ).sort_values(
-    by=['Employee ID Consolidated', 'Shift Start Time']
+    by=['Employee ID Consolidated', 'Timesheet Start Time']
 ).reset_index(drop=True)
 
 
+
+timesheet_df.to_csv('line389.csv')
+
 # Identify next shift start and end times per employee
 timesheet_df['Next_Start_dt'] = (
-    timesheet_df.groupby('Employee ID Consolidated')['Shift Start Time'].shift(-1)
+    timesheet_df.groupby('Employee ID Consolidated')['Timesheet Start Time'].shift(-1)
 )
 
 timesheet_df['Next_End_dt'] = (
@@ -985,8 +1002,9 @@ column_order = [
 timesheet_df = timesheet_df[column_order]
 
 
-# Preview
 
+
+# Preview
 timesheet_df.to_excel("Timesheet_clean.xlsx", sheet_name='timesheet', index=False)
 
 
@@ -1066,6 +1084,7 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby('EmpID_Wee
     #    'DOTW', 'Weekday',
     #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
        'Total TS Hours Adj' : 'sum',
+       'Weekly OT Hours' : 'sum',
        'OT First 2 Hours' : 'sum',
        'OT Post 2 Hours' : 'sum',
        'Breaks between work periods - Hours' : 'sum',
@@ -1188,10 +1207,12 @@ columns_to_drop = [
 
 'Rate_Sick Leave Salary',
 'Current_Sick Leave Salary',
-'Qty_Personal Salary'
+'Qty_Personal Salary',
 
 #'Current_Sick Leave Hourly',
 #'Rate_Sick Leave Hourly',
+
+'Weekly OT Hours'
 
 ]
 
@@ -1221,7 +1242,10 @@ def calculate_effective_hours(df):
     
     # Step 1: Adjust leave if payout condition triggered
     df['Effective_Leave'] = np.where(
-        (df['Total Leave Hours'] > 38) & (df['Total TS Hours Adj'] > 0),
+        # Adjusted logic so never goes over the ordinary hours wihtin a week
+        # Prevents counting paid out leave
+        ((df['Total Leave Hours'] + df['Total TS Hours Adj']) > 38),
+        #(df['Total Leave Hours'] > 38) & (df['Total TS Hours Adj'] > 0),
 
         #(df['Total TS Hours Adj'] > 38) & (df['Total Leave Hours'] > 0),
         0,
@@ -1265,8 +1289,8 @@ def calculate_overtime(group):
     week2_idx = group[group['Week Number'] == 2].index
     if len(week2_idx) > 0:
         # Put all OT in the first Week 2 row
-        group['Overtime_Hours'] = np.nan
-        group.loc[week2_idx[0], 'Overtime_Hours'] = sum(ot)
+        group['Weekly_Overtime_Hours (Incl Leave)'] = np.nan
+        group.loc[week2_idx[0], 'Weekly_Overtime_Hours (Incl Leave)'] = sum(ot)
 
     return group
 
@@ -1279,7 +1303,7 @@ timesheet_df_weekly_for_Leave = calculate_effective_hours(timesheet_df_weekly_fo
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby(['Fortnight_Key','Roster Ending'], group_keys=False).apply(calculate_overtime)
 
 
-
+timesheet_df_weekly_for_Leave['Weekly OT Hours (Excl Leave)'] = timesheet_df_weekly_for_Leave['Weekly OT Hours'] 
 
 
 # Drop only if the columns exist in your DataFrame
@@ -1288,48 +1312,8 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.drop(columns=[col 
 
 
 
-mask_first_2_ot = (
-    (timesheet_df_weekly_for_Leave['Fortnight_Total'] > Max_Ord_Hrs) &
-    (timesheet_df_weekly_for_Leave['Fortnight_Total'] <= First_2_Hrs_OT_Cutoff)
-)
-
-# Amount of shift hours that fall in the 38–40 window
-first_2_hours_calc = np.minimum(
-    timesheet_df_weekly_for_Leave['Total TS Hours Adj'],
-    First_2_Hrs_OT_Cutoff - (timesheet_df_weekly_for_Leave['Fortnight_Total'] - timesheet_df_weekly_for_Leave['Total TS Hours Adj'])
-)
-
-
-# 27/08/25  -  due to including leave in the OT calc we can't accurately determine whether the first 2 hour of overtime occured on a Sunday or not
-# so we will exclude the Sunday penalty flag from the first 2 hours calc
-# this may need to be revisited if CU or VU advise otherwise
-
-
-# Step 1 – calculate candidate first 2 hours
-
-timesheet_df_weekly_for_Leave['OT First 2 Hours'] = np.where(
-    mask_first_2_ot,
-    timesheet_df_weekly_for_Leave['Overtime_Hours'],
-    np.where(timesheet_df_weekly_for_Leave['Overtime_Hours'] > 2, 2, 0
-    )
-)
-
-# timesheet_df_weekly_for_Leave['OT First 2 Hours'] = np.where(
-#     (timesheet_df_weekly_for_Leave['Overtime_Hours'] > 0) & 
-#     (timesheet_df_weekly_for_Leave['Overtime_Hours'] < 2),
-#     timesheet_df_weekly_for_Leave['Overtime_Hours'],
-#     np.where(
-#         mask_first_2_ot,
-#         first_2_hours_calc,
-#         0
-#     )
-# )
-
-
-timesheet_df_weekly_for_Leave['OT Post 2 Hours'] = (
-     timesheet_df_weekly_for_Leave['Overtime_Hours'] - timesheet_df_weekly_for_Leave['OT First 2 Hours']
-
-)
+# Calculate if any difference between prior calculated OT and OT Inclusive of Leave
+timesheet_df_weekly_for_Leave['Difference between  Weekly OT (Excl Leave) and Weekly OT (Incl Leave)'] =  timesheet_df_weekly_for_Leave['Weekly_Overtime_Hours (Incl Leave)'] - timesheet_df_weekly_for_Leave['Weekly OT Hours (Excl Leave)'] 
 
 
 
@@ -1337,11 +1321,9 @@ timesheet_df_weekly_for_Leave['OT Post 2 Hours'] = (
 pairs = [
     ('Qty_Hourly Day',            'Rate_Hourly Day'),
     ('Qty_Hourly Night',          'Rate_Hourly Night'),
-    ('Qty_Hourly Public Holiday', 'Rate_Hourly Public Holiday'),
+    ('Qty_Public Holiday Hourly', 'Rate_Public Holiday Hourly'),
     ('Qty_Hourly Saturday',       'Rate_Hourly Saturday'),
     ('Qty_Hourly Sunday',         'Rate_Hourly Sunday'),
-   # ('Qty_Personal Salary',       'Rate_Personal Salary'),
-    #('Qty_Salary',                'Rate_Salary'),
 ]
 
 # Helper to coerce a column to numeric safely (handles $, commas, blanks)
@@ -1365,15 +1347,9 @@ timesheet_df_weekly_for_Leave['Total Allied Weekly Pay'] = total.round(2)
 
 
 
+timesheet_df_weekly_for_Leave['Discrepancy_Oridnary_Hours_and_OverTime'] = timesheet_df_weekly_for_Leave['Total Allied Weekly Pay'] -  timesheet_df_weekly_for_Leave['Total Amount (Award)']
 
-
-
-timesheet_df_weekly_for_Leave['Allied Above Award Day Rate (Min Rate)'] = (
-    timesheet_df_weekly_for_Leave['Rate_Hourly Day']
-    .replace(0, np.nan)              # treat 0 the same as NaN
-    .ffill()                         # forward fill down
-)
-
+timesheet_df_weekly_for_Leave['Discrepancy_First_Aid_Allowance'] = timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] - timesheet_df_weekly_for_Leave['First Aid Allowance Amount']
 
 
 timesheet_df_weekly_for_Leave.to_csv('timesheet_df_weekly_for_Leave.csv')
