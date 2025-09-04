@@ -128,14 +128,14 @@ timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_n
 
 # Can make these account for Weekend OT and PH once the PH list is complete
 
-Public_Holidays = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Public Holidays Victoria.xlsx", sheet_name='PH')
-Public_Holidays['Date'] = pd.to_datetime(Public_Holidays['Date'], errors='coerce').dt.date
+PUBLIC_HOLIDAYS = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Public Holidays Victoria.xlsx", sheet_name='PH')
+PUBLIC_HOLIDAYS['Date'] = pd.to_datetime(PUBLIC_HOLIDAYS['Date'], errors='coerce').dt.date
 timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'], errors='coerce').dt.date
 
 # Saturday, Sunday and PH Penality Flags
 
 timesheet_df['Public_Holiday_flag'] = np.where(
-    timesheet_df['TS_Start_Date'].isin(Public_Holidays['Date']),
+    timesheet_df['TS_Start_Date'].isin(PUBLIC_HOLIDAYS['Date']),
     'Y',
     'N'
 )
@@ -155,64 +155,161 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
     'N'
 )
 
-# Public Holiday Hours (all worked hours on PH)
-timesheet_df['PH TS Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
-    if row['Public_Holiday_flag'] == 'Y' else 0,
-    axis=1
-)
+# # Public Holiday Hours (all worked hours on PH)
+# timesheet_df['PH TS Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
+#     if row['Public_Holiday_flag'] == 'Y' else 0,
+#     axis=1
+# )
 
-# Day shift (Mon–Fri only, weekdays 1–5)
-timesheet_df['Day TS Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0)) 
-    if (row['DOTW'] in [1, 2, 3, 4, 5]) 
-    # and (row['Public_Holiday_flag'] != 'Y') 
-    else 0,
-    axis=1
-)
+# # Day shift (Mon–Fri only, weekdays 1–5)
+# timesheet_df['Day TS Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(6, 0), time(18, 0)) 
+#     if (row['DOTW'] in [1, 2, 3, 4, 5]) 
+#     # and (row['Public_Holiday_flag'] != 'Y') 
+#     else 0,
+#     axis=1
+# )
 
 
+# # Night shift (Mon–Fri only, weekdays 1–5)
+# timesheet_df['Night TS Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0))
+#     if (row['DOTW'] in [1, 2, 3, 4, 5]) 
+#     # Fix 4/09/2025 Where Friday Night Shift goes into Saturday
+#     #and (row['Public_Holiday_flag'] != 'Y') 
+#     else 0,
+#     axis=1
+# )
 
-# Night shift (Mon–Fri only, weekdays 1–5)
-timesheet_df['Night TS Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(18, 0), time(6, 0))
-    if (row['DOTW'] in [1, 2, 3, 4, 5]) 
-    #and (row['Public_Holiday_flag'] != 'Y') 
-    else 0,
-    axis=1
-)
+# # Saturday TS Hours (all worked hours on Sat)
+# timesheet_df['Saturday TS Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
+#     if (row['DOTW'] == 6) 
+#     # and (row['Public_Holiday_flag'] != 'Y') 
+#     else 0,
+#     axis=1
+# )
 
-# Saturday TS Hours (all worked hours on Sat)
-timesheet_df['Saturday TS Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
-    if (row['DOTW'] == 6) 
-    # and (row['Public_Holiday_flag'] != 'Y') 
-    else 0,
-    axis=1
-)
+# # Sunday TS Hours (all worked hours on Sun)
+# timesheet_df['Sunday TS Hours'] = timesheet_df.apply(
+#     lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
+#     if (row['DOTW'] == 7) 
+#     #and (row['Public_Holiday_flag'] != 'Y') 
+#     else 0,
+#     axis=1
+# )
+from datetime import datetime, date, time, timedelta
+import pandas as pd
 
-# Sunday TS Hours (all worked hours on Sun)
-timesheet_df['Sunday TS Hours'] = timesheet_df.apply(
-    lambda row: calculate_shift_hours(row['TS_TimeOnly_Start'], row['TS_TimeOnly_End'], time(0, 0), time(0, 0))
-    if (row['DOTW'] == 7) 
-    #and (row['Public_Holiday_flag'] != 'Y') 
-    else 0,
-    axis=1
-)
+# --- Populate this from your holiday calendar ---
+# Example: PUBLIC_HOLIDAYS = set(pd.to_datetime(hol_df['holiday_date']).dt.date)
+PUBLIC_HOLIDAYS = {date(2023,11,7)}  # <- for testing with your example
 
+# --- helpers ---
+def hours_between(a: datetime, b: datetime) -> float:
+    return (b - a).total_seconds() / 3600.0
+
+def split_by_midnights(start: datetime, end: datetime):
+    """
+    Yield (isoweekday, part_start, part_end) where each part is within a single calendar date.
+    Normalise end if it's <= start by assuming it moves to the next day.
+    """
+    if end <= start:
+        end = end + timedelta(days=1)
+
+    cur_start = start
+    cur_dotw = start.isoweekday()  # 1=Mon ... 7=Sun
+
+    while cur_start.date() != end.date():
+        next_midnight = datetime.combine(cur_start.date() + timedelta(days=1), time(0, 0))
+        yield (cur_dotw, cur_start, next_midnight)
+        cur_start = next_midnight
+        cur_dotw = 1 if cur_dotw == 7 else cur_dotw + 1
+
+    yield (cur_dotw, cur_start, end)
+
+def overlap_hours_in_window(s: datetime, e: datetime, win_start: time, win_end: time) -> float:
+    """
+    Overlap between [s, e) and a time-of-day window on s.date().
+    Supports windows that roll overnight (e.g., 18:00->06:00).
+    """
+    day = s.date()
+    day_start = datetime.combine(day, time(0, 0))
+    day_end   = day_start + timedelta(days=1)
+
+    if win_start < win_end:
+        window_start_dt = datetime.combine(day, win_start)
+        window_end_dt   = datetime.combine(day, win_end)
+        a = max(s, window_start_dt)
+        b = min(e, window_end_dt)
+        return max(0.0, hours_between(a, b))
+    else:
+        # overnight window: treat as two windows:
+        # [win_start, 24:00) and [00:00, win_end] (both on the same "day" footprint)
+        w1_start = datetime.combine(day, win_start)
+        w1_end   = day_end
+        a1 = max(s, w1_start); b1 = min(e, w1_end)
+        h1 = max(0.0, hours_between(a1, b1))
+        w2_start = day_start
+        w2_end   = datetime.combine(day, win_end)
+        a2 = max(s, w2_start); b2 = min(e, w2_end)
+        h2 = max(0.0, hours_between(a2, b2))
+        return h1 + h2
+
+# night window
+NIGHT_START = time(18, 0)
+NIGHT_END   = time(6, 0)
+
+# --- classifier (row -> Series) ---
+def classify_shift_row(row):
+    start_dt = row['Timesheet Start Time']
+    end_dt   = row['Timesheet End Time']
+
+    night = saturday = sunday = ph = day = 0.0
+
+    for d, s, e in split_by_midnights(start_dt, end_dt):
+        part_hours = hours_between(s, e)
+        if part_hours <= 0:
+            continue
+
+        # PH check per calendar date segment (PH runs only until midnight)
+        if s.date() in PUBLIC_HOLIDAYS:
+            ph += part_hours
+            continue
+
+        # non-PH classification
+        if d in (1, 2, 3, 4, 5):  # Mon-Fri
+            nh = overlap_hours_in_window(s, e, NIGHT_START, NIGHT_END)
+            night += nh
+            day   += max(0.0, part_hours - nh)
+        elif d == 6:
+            saturday += part_hours
+        elif d == 7:
+            sunday += part_hours
+
+    return pd.Series([night, saturday, sunday, ph, day],
+                     index=['Night TS Hours','Saturday TS Hours','Sunday TS Hours','PH TS Hours','Day TS Hours'])
+
+# --- apply to dataframe ---
+timesheet_df[['Night TS Hours',
+              'Saturday TS Hours',
+              'Sunday TS Hours',
+              'PH TS Hours',
+              'Day TS Hours']] = timesheet_df.apply(classify_shift_row, axis=1)
 
 # Deduct PH TS Hours were applicable - covers instances where some hours fall on PH 
 # Ensure that shift hours are not negative after subtracting Public Holiday hours
-timesheet_df['Day TS Hours'] = (timesheet_df['Day TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
-timesheet_df['Night TS Hours'] = (timesheet_df['Night TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
-timesheet_df['Saturday TS Hours'] = (timesheet_df['Saturday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
-timesheet_df['Sunday TS Hours'] = (timesheet_df['Sunday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+# timesheet_df['Day TS Hours'] = (timesheet_df['Day TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+# timesheet_df['Night TS Hours'] = (timesheet_df['Night TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+# timesheet_df['Saturday TS Hours'] = (timesheet_df['Saturday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
+# timesheet_df['Sunday TS Hours'] = (timesheet_df['Sunday TS Hours'] - timesheet_df['PH TS Hours']).clip(lower=0)
 
 
 # Step 1: Calculate Total TS Hours Adj
 timesheet_df['Total TS Hours'] = timesheet_df['Night TS Hours'] + timesheet_df['Day TS Hours'] + timesheet_df['Saturday TS Hours'] + timesheet_df['Sunday TS Hours'] + timesheet_df['PH TS Hours']
 
-
+timesheet_df.to_csv('line297.csv')
 
 # Meal Breaks deduct half an hour if shift is over 5 hours
 timesheet_df['Meal_Break_Deduction'] = np.where(

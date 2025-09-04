@@ -279,10 +279,6 @@ df['EmployeeNumber'] = df['Employee ID Consolidated']
 
 
 
-
-df.to_csv('line272.csv')
-print(df.columns)
-
 # Create a copy of the relevant columns
 super_df = df[["EmployeeNumber", "Super Pay Date", "SuperFundName"]].copy()
 
