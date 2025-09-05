@@ -129,7 +129,8 @@ timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_n
 # Can make these account for Weekend OT and PH once the PH list is complete
 
 PUBLIC_HOLIDAYS = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Public Holidays Victoria.xlsx", sheet_name='PH')
-PUBLIC_HOLIDAYS['Date'] = pd.to_datetime(PUBLIC_HOLIDAYS['Date'], errors='coerce').dt.date
+PUBLIC_HOLIDAYS['Date'] = pd.to_datetime(PUBLIC_HOLIDAYS['Date'], errors='coerce')
+
 timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'], errors='coerce').dt.date
 
 # Saturday, Sunday and PH Penality Flags
@@ -198,13 +199,13 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
 #     #and (row['Public_Holiday_flag'] != 'Y') 
 #     else 0,
 #     axis=1
-# )
-from datetime import datetime, date, time, timedelta
-import pandas as pd
+# # )
+# from datetime import datetime, date, time, timedelta
+# import pandas as pd
 
 # --- Populate this from your holiday calendar ---
-# Example: PUBLIC_HOLIDAYS = set(pd.to_datetime(hol_df['holiday_date']).dt.date)
-PUBLIC_HOLIDAYS = {date(2023,11,7)}  # <- for testing with your example
+PUBLIC_HOLIDAYS = set(pd.to_datetime(PUBLIC_HOLIDAYS['Date']).dt.date)
+
 
 # --- helpers ---
 def hours_between(a: datetime, b: datetime) -> float:
@@ -297,6 +298,12 @@ timesheet_df[['Night TS Hours',
               'Sunday TS Hours',
               'PH TS Hours',
               'Day TS Hours']] = timesheet_df.apply(classify_shift_row, axis=1)
+
+
+
+
+
+
 
 # Deduct PH TS Hours were applicable - covers instances where some hours fall on PH 
 # Ensure that shift hours are not negative after subtracting Public Holiday hours
