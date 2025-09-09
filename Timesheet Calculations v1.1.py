@@ -96,6 +96,7 @@ timesheet_df = timesheet_df[timesheet_df['Team member'] != 'Anthony Knight']
 # Drop rows where Team member is 'Grahame Corbett' as Salary not shift worker
 timesheet_df = timesheet_df[timesheet_df['Team member'] != 'Grahame Corbett']
 
+
 # (Optional) Reset the index if you want a clean index after dropping
 timesheet_df = timesheet_df.reset_index(drop=True)
 
@@ -157,7 +158,10 @@ timesheet_df['Sunday_Penality_flag'] = np.where(
 )
 
 
-# --- Populate this from your holiday calendar ---
+
+# === Day, Night, Sat, Sunday and PH allocations ===
+
+# --- Populate set from Public holiday calendar ---
 PUBLIC_HOLIDAYS = set(pd.to_datetime(PUBLIC_HOLIDAYS['Date']).dt.date)
 
 
@@ -165,6 +169,7 @@ PUBLIC_HOLIDAYS = set(pd.to_datetime(PUBLIC_HOLIDAYS['Date']).dt.date)
 def hours_between(a: datetime, b: datetime) -> float:
     return (b - a).total_seconds() / 3600.0
 
+# Used for Public Holiday Hours
 def split_by_midnights(start: datetime, end: datetime):
     """
     Yield (isoweekday, part_start, part_end) where each part is within a single calendar date.
@@ -184,6 +189,8 @@ def split_by_midnights(start: datetime, end: datetime):
 
     yield (cur_dotw, cur_start, end)
 
+    
+# Used where there is overlap between night and PH hours
 def overlap_hours_in_window(s: datetime, e: datetime, win_start: time, win_end: time) -> float:
     """
     Overlap between [s, e) and a time-of-day window on s.date().
@@ -259,7 +266,6 @@ timesheet_df[['Night TS Hours',
 # Step 1: Calculate Total TS Hours Adj
 timesheet_df['Total TS Hours'] = timesheet_df['Night TS Hours'] + timesheet_df['Day TS Hours'] + timesheet_df['Saturday TS Hours'] + timesheet_df['Sunday TS Hours'] + timesheet_df['PH TS Hours']
 
-timesheet_df.to_csv('line297.csv')
 
 # Meal Breaks deduct half an hour if shift is over 5 hours
 timesheet_df['Meal_Break_Deduction'] = np.where(
@@ -334,6 +340,13 @@ timesheet_df['Week Ending'] = np.where(
     timesheet_df['Roster Ending']
 )
 
+
+
+
+
+
+
+
 # Pay Dates
 # Week 1 Pay Date (Wednesday after Week 1 Ending)
 wed_offset_w1 = (2 - timesheet_df['Week 1 Ending'].dt.weekday + 7) % 7
@@ -360,8 +373,40 @@ timesheet_df.loc[
 
 
 
-
 # === End of Roster and Pay Date Calculations ===
+
+
+
+### ===  Condensing Dataset where incomplete data provided ===
+
+# Cut off Timesheet where Review period incomplete
+
+# Define your cut-off dates
+start_date = pd.Timestamp('2025-07-02')  # after this date
+end_date = pd.Timestamp('2023-11-15')    # on or before this date
+
+# Filter the DataFrame
+timesheet_df = timesheet_df.copy()
+timesheet_df = timesheet_df[
+    (timesheet_df['Estimated Pay Date'] <= start_date) &
+    (timesheet_df['Estimated Pay Date'] > end_date)
+]
+
+# Optional: reset index
+timesheet_df.reset_index(drop=True, inplace=True)
+
+### === End of Condensing of dataset ===
+
+### === Adding Finacial Year Column ===
+        # Assign the financial year (FY) based on the Estimated Pay Date
+timesheet_df['Financial_Year'] = np.where(
+        timesheet_df['Estimated Pay Date'].dt.month >= 7,
+        timesheet_df['Estimated Pay Date'].dt.year + 1,  # July–Dec belongs to the next FY
+        timesheet_df['Estimated Pay Date'].dt.year  # Jan–June belongs to the current FY
+    )
+
+    # Fill NaN values before converting to int
+timesheet_df['Financial_Year'] = timesheet_df['Financial_Year'].fillna(0).astype(int)
 
 
 # 1) Remove perfect duplicates
@@ -405,7 +450,6 @@ timesheet_df['Roster Cumulative Hours'] = timesheet_df.groupby(
 timesheet_df['Roster Period Total Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Roster Ending']
 )['Total TS Hours Adj'].transform('sum')
-
 
 
 
@@ -1017,6 +1061,7 @@ column_order = [
 'Timesheet Status',
 'Timesheet Start Time',
 'Timesheet End Time',
+'Financial_Year',
 'TS_Start_Date',
 'TS_End_Date',
 'TS_TimeOnly_Start',
