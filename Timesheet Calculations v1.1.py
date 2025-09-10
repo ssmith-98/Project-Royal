@@ -424,6 +424,9 @@ timesheet_df['Weekly Total Hours'] = timesheet_df.groupby(
 )['Total TS Hours Adj'].transform('sum')
 
 
+
+# Hi Thomas
+
 # # 3) Weekly cumulative hours per employee-week (sorted within the week)
 # timesheet_df = timesheet_df.sort_values(
 #     ['Employee ID Consolidated', 'Week Ending', 'Timesheet Start Time']
