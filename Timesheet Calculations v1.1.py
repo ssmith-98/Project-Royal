@@ -398,11 +398,11 @@ timesheet_df.reset_index(drop=True, inplace=True)
 ### === End of Condensing of dataset ===
 
 ### === Adding Finacial Year Column ===
-        # Assign the financial year (FY) based on the Estimated Pay Date
+        # Assign the financial year (FY) based on the Week Ending
 timesheet_df['Financial_Year'] = np.where(
-        timesheet_df['Estimated Pay Date'].dt.month >= 7,
-        timesheet_df['Estimated Pay Date'].dt.year + 1,  # July–Dec belongs to the next FY
-        timesheet_df['Estimated Pay Date'].dt.year  # Jan–June belongs to the current FY
+        timesheet_df['Week Ending'].dt.month >= 7,
+        timesheet_df['Week Ending'].dt.year + 1,  # July–Dec belongs to the next FY
+        timesheet_df['Week Ending'].dt.year  # Jan–June belongs to the current FY
     )
 
     # Fill NaN values before converting to int
@@ -1225,6 +1225,7 @@ agg_dict = {
     'EmpID_PayDay_Key'       : first_nonnull,
     'Employee ID Consolidated': first_nonnull,
     'Estimated Pay Date'     : first_nonnull,
+    'Financial_Year'         : first_nonnull,
     'Roster Starting'        : first_nonnull,
     'Week Ending'            : first_nonnull,
     'Roster Ending'          : first_nonnull,
@@ -1232,6 +1233,8 @@ agg_dict = {
     'Team member'            : first_nonnull,
 
     # numeric columns (sum them up)
+    'Day TS Hours'           : 'sum',
+    'Night TS Hours'         : 'sum',
     'Day TS Hours Adj'       : 'sum',
     'Night TS Hours Adj'     : 'sum', 
     'PH TS Hours'            : 'sum',
