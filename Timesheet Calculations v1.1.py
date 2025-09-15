@@ -130,17 +130,29 @@ timesheet_df['Weekday'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt.day_n
 # Can make these account for Weekend OT and PH once the PH list is complete
 
 PUBLIC_HOLIDAYS = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Public Holidays Victoria.xlsx", sheet_name='PH')
-PUBLIC_HOLIDAYS['Date'] = pd.to_datetime(PUBLIC_HOLIDAYS['Date'], errors='coerce')
+# PUBLIC_HOLIDAYS['Date'] = pd.to_datetime(PUBLIC_HOLIDAYS['Date'], errors='coerce')
 
+# timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'], errors='coerce').dt.date
+
+# # Saturday, Sunday and PH Penality Flags
+
+# timesheet_df['Public_Holiday_flag'] = np.where(
+#     timesheet_df['TS_Start_Date'].isin(PUBLIC_HOLIDAYS['Date']),
+#     'Y',
+#     'N'
+# )
+
+
+PUBLIC_HOLIDAYS['Date'] = pd.to_datetime(PUBLIC_HOLIDAYS['Date'], errors='coerce').dt.date
 timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'], errors='coerce').dt.date
-
-# Saturday, Sunday and PH Penality Flags
 
 timesheet_df['Public_Holiday_flag'] = np.where(
     timesheet_df['TS_Start_Date'].isin(PUBLIC_HOLIDAYS['Date']),
     'Y',
     'N'
 )
+
+
 
 
 
