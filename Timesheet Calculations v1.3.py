@@ -936,33 +936,87 @@ timesheet_df['OT Post 2 Hours (Weekly)'] = (
 ).clip(lower=0)
 
 
-# ensure no doubling up of OT Hours and Sunday and PH hours and Saturday Hours
-timesheet_df['OT First 2 Hours (Daily)'] = np.where(
-    (timesheet_df['Daily OT Flag'] == 'Y') &
-    (timesheet_df['Sunday_Penality_flag'] == 'N') &
-    (timesheet_df['Public_Holiday_flag'] == 'N') & 
-    (timesheet_df['Saturday_Penality_flag'] == 'N') &
-    (timesheet_df['Roster OT Flag'] == 'N'),
-    np.clip(timesheet_df['Daily OT Hours'], 0, 2),
-    0
-)
+# # ensure no doubling up of OT Hours and Sunday and PH hours and Saturday Hours
+# timesheet_df['OT First 2 Hours (Daily)'] = np.where(
+#     (timesheet_df['Daily OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N') & 
+#     (timesheet_df['Saturday_Penality_flag'] == 'N') &
+#     (timesheet_df['Roster OT Flag'] == 'N'),
+#     np.clip(timesheet_df['Daily OT Hours'], 0, 2),
+#     0
+# )
 
 
-timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
-    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'] > 0,
-    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'],
-    0
-)
+# timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+#     timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'] > 0,
+#     timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'],
+#     0
+# )
 
 
-# ensure no doubling up of OT Hours and Sunday and PH hours
-timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
-    (timesheet_df['Daily OT Flag'] == 'Y') &
-    (timesheet_df['Sunday_Penality_flag'] == 'N') &
-    (timesheet_df['Public_Holiday_flag'] == 'N'),
-    timesheet_df['OT Post 2 Hours (Daily)'],
-    0
-)
+# # ensure no doubling up of OT Hours and Sunday and PH hours
+# timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+#     (timesheet_df['Daily OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N'),
+#     timesheet_df['OT Post 2 Hours (Daily)'],
+#     0
+# )
+
+
+# --- Daily OT Allocation ---
+
+# # First 2 Daily OT hours (only if not Sunday/PH/Saturday, and not Roster OT)
+# timesheet_df['OT First 2 Hours (Daily)'] = np.where(
+#     (timesheet_df['Daily OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N') & 
+#     (timesheet_df['Saturday_Penality_flag'] == 'N') &
+#     (timesheet_df['Roster OT Flag'] == 'N'),
+#     np.minimum(timesheet_df['Daily OT Hours'], 2),  # cap at 2
+#     0
+# )
+
+# # Post 2 Daily OT hours = remainder (only for eligible days)
+# timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+#     (timesheet_df['Daily OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N'),
+#     np.maximum(timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'], 0),
+#     0
+# )
+
+
+# eligible_daily = (
+#     (timesheet_df['Daily OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N') &
+#     (timesheet_df['Saturday_Penality_flag'] == 'N') &
+#     (timesheet_df['Roster OT Flag'] == 'N')
+# )
+
+# # First 2 daily OT
+# timesheet_df['OT First 2 Hours (Daily)'] = np.where(
+#     eligible_daily,
+#     np.minimum(timesheet_df['Daily OT Hours'], 2),
+#     0
+# )
+
+# # Post 2 daily OT
+# timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+#     eligible_daily,
+#     np.maximum(timesheet_df['Daily OT Hours'] - 2, 0),
+#     0
+# )
+# First 2 hours of daily OT (capped at 2)
+timesheet_df['OT First 2 Hours (Daily)'] = np.clip(timesheet_df['Daily OT Hours'], 0, 2)
+
+# Anything above 2 goes into post-2
+timesheet_df['OT Post 2 Hours (Daily)'] = (
+    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)']
+).clip(lower=0)
+
 
 
 # Add the Daily and Weekly OT first 2 hours and post 2 hours as there is no overlap
@@ -1256,8 +1310,8 @@ timesheet_df['Total Amount (Award)'] = (
     timesheet_df['Sunday Amount (Award)'] +
     timesheet_df['Public Holiday Amount (Award)'] +
     timesheet_df['OT First 2 Hours Amount (Award)'] +
-    timesheet_df['OT Post 2 Hours Amount (Award)'] 
-    + timesheet_df['Breaks between work periods - Amount (Award)']
+    timesheet_df['OT Post 2 Hours Amount (Award)'] + 
+    timesheet_df['Breaks between work periods - Amount (Award)']
 ).round(2)
 
 
