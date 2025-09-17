@@ -935,8 +935,8 @@ condition1 = (timesheet_df['Roster OT Flag'] == 'Y') & \
 # Condition: OT flag is Y (used in second np.where) where not all hours are OT
 condition2 = timesheet_df['Roster OT Flag'] == 'Y'
 
-# Weekly OT Hours
-timesheet_df['Weekly OT Hours'] = np.where(
+# Roster OT Hours
+timesheet_df['Roster OT Hours'] = np.where(
     condition1,
     # All shift hours are OT if we've already exceeded Max_Ord_Hrs before this shift
     timesheet_df['Total TS Hours Adj'],
@@ -951,100 +951,9 @@ timesheet_df['Weekly OT Hours'] = np.where(
 )
 
 # Ensure OT hours don't go negative
-timesheet_df['Weekly OT Hours'] = timesheet_df['Weekly OT Hours'].clip(lower=0)
+timesheet_df['Roster OT Hours'] = timesheet_df['Roster OT Hours'].clip(lower=0)
 
 # === End of Daily and Weekly Overtime Calculations Hours ===
-
-# === Start of First 2 Hours OT and Post 2 Hours OT Calculations ===
-# First two hours will be on the weekly OT hours basis until told otherwise by CU or VU - 14.08.25
-# Condition: weekly cumulative hours > 76 but <= 78
-
-# Condition mask for first 2 hours OT eligibility
-mask_first_2_ot = (
-    (timesheet_df['Roster Period Total Hours'] > Max_Ord_Hrs) &
-    (timesheet_df['Roster Period Total Hours'] <= First_2_Hrs_OT_Cutoff)
-)
-
-# Amount of shift hours that fall in the 38–40 window
-first_2_hours_calc = np.minimum(
-    timesheet_df['Total TS Hours Adj'],
-    First_2_Hrs_OT_Cutoff - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total TS Hours Adj'])
-)
-
-
-
-# Weekly OT First 2 Hours and Daily OT First 2 Hours
-# Weekly OT First 2 Hours
-# Condition: Roster Cumulative Hours > Max_Ord_Hrs, not Sunday, Roster OT Flag is Y and cumulative hours before this shift are <= Max_Ord_Hrs
-# Result: no greater than 2 hours OT\
-# Need to need to cap at 2 hours if more than 2 hours OT in the week
-
-
-
-# Running total of OT hours including this row
-timesheet_df['cumu_ot'] = (
-    timesheet_df.groupby(['Employee ID Consolidated','Roster Ending'])['Weekly OT Hours']
-    .cumsum()
-)
-
-# Remaining cap AT this row (not shifted)
-timesheet_df['remaining_cap'] = (2 - timesheet_df['cumu_ot']).clip(lower=0, upper=2)
-
-# Allocation for this row = min(this row’s OT, room left BEFORE this row)
-timesheet_df['OT First 2 Hours (Weekly)'] = np.minimum(
-    timesheet_df['Weekly OT Hours'],
-    2 - (timesheet_df['cumu_ot'] - timesheet_df['Weekly OT Hours']).clip(lower=0, upper=2)
-)
-
-# Excess goes into post-2 hours
-timesheet_df['OT Post 2 Hours (Weekly)'] = (
-    timesheet_df['Weekly OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)']
-).clip(lower=0)
-
-# ensure no doubling up of OT Hours and Sunday and PH hours
-timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
-    (timesheet_df['Roster OT Flag'] == 'Y') &
-    (timesheet_df['Sunday_Penality_flag'] == 'N') &
-    (timesheet_df['Public_Holiday_flag'] == 'N'),
-    timesheet_df['OT First 2 Hours (Weekly)'],
-    0
-)
-timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
-    (timesheet_df['Roster OT Flag'] == 'Y') &
-    (timesheet_df['Sunday_Penality_flag'] == 'N') &
-    (timesheet_df['Public_Holiday_flag'] == 'N'),
-    timesheet_df['OT Post 2 Hours (Weekly)'],
-    0
-)
-
-# ensure no doubling up of OT Hours and Sunday and PH hours and Saturday Hours
-timesheet_df['OT First 2 Hours (Daily)'] = np.where(
-    (timesheet_df['Daily OT Flag'] == 'Y') &
-    (timesheet_df['Sunday_Penality_flag'] == 'N') &
-    (timesheet_df['Public_Holiday_flag'] == 'N') & 
-    (timesheet_df['Saturday_Penality_flag'] == 'N') &
-    (timesheet_df['Roster OT Flag'] == 'N'),
-    np.clip(timesheet_df['Daily OT Hours'], 0, 2),
-    0
-)
-
-
-timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
-    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'] > 0,
-    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'],
-    0
-)
-# ensure no doubling up of OT Hours and Sunday and PH hours
-timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
-    (timesheet_df['Roster OT Flag'] == 'Y') &
-    (timesheet_df['Sunday_Penality_flag'] == 'N') &
-    (timesheet_df['Public_Holiday_flag'] == 'N'),
-    timesheet_df['OT Post 2 Hours (Daily)'],
-    0
-)
-
-
-
 
 # === Avoiding Double counting of Hours ===
 
@@ -1095,153 +1004,10 @@ timesheet_df['Saturday TS Hours Adj'] = np.where(
 
 
 
-# def adjust_weekly_hours(timesheet_df):
-#     # 1. Roster OT Segment = Day
-#     mask_day = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Day')
-#     timesheet_df.loc[mask_day, 'Day TS Hours Adj'] = (
-#         timesheet_df.loc[mask_day, 'Day TS Hours Adj'] - timesheet_df.loc[mask_day, 'Weekly OT Hours']
-#     )
-
-#     # Handle negatives: push remainder to Night or Saturday
-#     neg_mask = mask_day & (timesheet_df['Day TS Hours Adj'] < 0)
-#     remainder = -timesheet_df.loc[neg_mask, 'Day TS Hours Adj']
-
-#     # Set Day to zero
-#     timesheet_df.loc[neg_mask, 'Day TS Hours Adj'] = 0
-
-#     # Deduct from Night first
-#     timesheet_df.loc[neg_mask, 'Night TS Hours Adj'] -= remainder
-
-#     # If still negative, push to Saturday
-#     still_neg_mask = neg_mask & (timesheet_df['Night TS Hours Adj'] < 0)
-#     remainder2 = -timesheet_df.loc[still_neg_mask, 'Night TS Hours Adj']
-#     timesheet_df.loc[still_neg_mask, 'Night TS Hours Adj'] = 0
-#     timesheet_df.loc[still_neg_mask, 'TS Saturday Hours'] -= remainder2
-
-#     # ---------------------------------------------------------
-
-#     # 2. Roster OT Segment = Night
-#     mask_night = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Night')
-#     timesheet_df.loc[mask_night, 'Night TS Hours Adj'] = (
-#         timesheet_df.loc[mask_night, 'Night TS Hours Adj'] - timesheet_df.loc[mask_night, 'Weekly OT Hours']
-#     )
-
-#     neg_mask = mask_night & (timesheet_df['Night TS Hours Adj'] < 0)
-#     remainder = -timesheet_df.loc[neg_mask, 'Night TS Hours Adj']
-#     timesheet_df.loc[neg_mask, 'Night TS Hours Adj'] = 0
-
-#     # Deduct from Day first
-#     timesheet_df.loc[neg_mask, 'Day TS Hours Adj'] -= remainder
-
-#     # If still negative, push to Saturday
-#     still_neg_mask = neg_mask & (timesheet_df['Day TS Hours Adj'] < 0)
-#     remainder2 = -timesheet_df.loc[still_neg_mask, 'Day TS Hours Adj']
-#     timesheet_df.loc[still_neg_mask, 'Day TS Hours Adj'] = 0
-#     timesheet_df.loc[still_neg_mask, 'TS Saturday Hours'] -= remainder2
-
-#     # ---------------------------------------------------------
-
-#     # 3. Roster OT Segment = Public Holiday
-#     mask_ph = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Public Holiday')
-#     timesheet_df.loc[mask_ph, 'Weekly OT Hours'] = 0
-
-#     # ---------------------------------------------------------
-
-#     # 4. Roster OT Segment = Sunday
-#     mask_sun = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Sunday')
-#     timesheet_df.loc[mask_sun, 'Weekly OT Hours'] = 0
-
-#     # ---------------------------------------------------------
-
-#     # 5. Roster OT Segment = Saturday
-#     mask_sat = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Saturday')
-#     timesheet_df.loc[mask_sat, 'TS Saturday Hours'] = (
-#         timesheet_df.loc[mask_sat, 'TS Saturday Hours'] - timesheet_df.loc[mask_sat, 'Weekly OT Hours']
-#     )
-
-#     neg_mask = mask_sat & (timesheet_df['TS Saturday Hours'] < 0)
-#     remainder = -timesheet_df.loc[neg_mask, 'TS Saturday Hours']
-#     timesheet_df.loc[neg_mask, 'TS Saturday Hours'] = 0
-
-#     # Deduct from Day first
-#     timesheet_df.loc[neg_mask, 'Day TS Hours Adj'] -= remainder
-
-#     # If still negative, push to Night
-#     still_neg_mask = neg_mask & (timesheet_df['Day TS Hours Adj'] < 0)
-#     remainder2 = -timesheet_df.loc[still_neg_mask, 'Day TS Hours Adj']
-#     timesheet_df.loc[still_neg_mask, 'Day TS Hours Adj'] = 0
-#     timesheet_df.loc[still_neg_mask, 'Night TS Hours Adj'] -= remainder2
-
-#     return timesheet_df
-
-
-
-#  first
-
-# def adjust_weekly_hours(timesheet_df):
-#     # --- 1. Day Roster OT ---
-#     mask_day = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Day')
-#     day_deduction = np.where(mask_day, timesheet_df['Weekly OT Hours'], 0)
-
-#     # Subtract from Day
-#     timesheet_df['Day TS Hours Adj'] -= day_deduction
-#     remainder = np.where(timesheet_df['Day TS Hours Adj'] < 0, -timesheet_df['Day TS Hours Adj'], 0)
-#     timesheet_df['Day TS Hours Adj'] = np.maximum(timesheet_df['Day TS Hours Adj'], 0)
-
-#     # Deduct remainder from Night
-#     timesheet_df['Night TS Hours Adj'] -= remainder
-#     remainder = np.where(timesheet_df['Night TS Hours Adj'] < 0, -timesheet_df['Night TS Hours Adj'], 0)
-#     timesheet_df['Night TS Hours Adj'] = np.maximum(timesheet_df['Night TS Hours Adj'], 0)
-
-#     # Deduct remainder from Saturday
-#     timesheet_df['Saturday TS Hours Adj'] -= remainder
-#     timesheet_df['Saturday TS Hours Adj'] = np.maximum(timesheet_df['Saturday TS Hours Adj'], 0)
-
-#     # --- 2. Night Roster OT ---
-#     mask_night = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Night')
-#     night_deduction = np.where(mask_night, timesheet_df['Weekly OT Hours'], 0)
-
-#     timesheet_df['Night TS Hours Adj'] -= night_deduction
-#     remainder = np.where(timesheet_df['Night TS Hours Adj'] < 0, -timesheet_df['Night TS Hours Adj'], 0)
-#     timesheet_df['Night TS Hours Adj'] = np.maximum(timesheet_df['Night TS Hours Adj'], 0)
-
-#     timesheet_df['Day TS Hours Adj'] -= remainder
-#     remainder = np.where(timesheet_df['Day TS Hours Adj'] < 0, -timesheet_df['Day TS Hours Adj'], 0)
-#     timesheet_df['Day TS Hours Adj'] = np.maximum(timesheet_df['Day TS Hours Adj'], 0)
-
-#     timesheet_df['Saturday TS Hours Adj'] -= remainder
-#     timesheet_df['Saturday TS Hours Adj'] = np.maximum(timesheet_df['Saturday TS Hours Adj'], 0)
-
-#     # --- 3. Public Holiday Roster OT ---
-#     mask_ph = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Public Holiday')
-#     timesheet_df['Weekly OT Hours'] = np.where(mask_ph, 0, timesheet_df['Weekly OT Hours'])
-
-#     # --- 4. Sunday Roster OT ---
-#     mask_sun = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Sunday')
-#     timesheet_df['Weekly OT Hours'] = np.where(mask_sun, 0, timesheet_df['Weekly OT Hours'])
-
-#     # --- 5. Saturday Roster OT ---
-#     mask_sat = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Saturday')
-#     sat_deduction = np.where(mask_sat, timesheet_df['Weekly OT Hours'], 0)
-
-#     timesheet_df['Saturday TS Hours Adj'] -= sat_deduction
-#     remainder = np.where(timesheet_df['Saturday TS Hours Adj'] < 0, -timesheet_df['Saturday TS Hours Adj'], 0)
-#     timesheet_df['Saturday TS Hours Adj'] = np.maximum(timesheet_df['Saturday TS Hours Adj'], 0)
-
-#     timesheet_df['Day TS Hours Adj'] -= remainder
-#     remainder = np.where(timesheet_df['Day TS Hours Adj'] < 0, -timesheet_df['Day TS Hours Adj'], 0)
-#     timesheet_df['Day TS Hours Adj'] = np.maximum(timesheet_df['Day TS Hours Adj'], 0)
-
-#     timesheet_df['Night TS Hours Adj'] -= remainder
-#     timesheet_df['Night TS Hours Adj'] = np.maximum(timesheet_df['Night TS Hours Adj'], 0)
-
-#     return timesheet_df
-
-
 def adjust_weekly_hours(timesheet_df):
     # --- 1. Day Roster OT ---
     mask_day = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Day')
-    day_deduction = np.where(mask_day, timesheet_df['Weekly OT Hours'], 0)
+    day_deduction = np.where(mask_day, timesheet_df['Roster OT Hours'], 0)
 
     timesheet_df['Day TS Hours Adj'] -= day_deduction
     remainder = np.where(timesheet_df['Day TS Hours Adj'] < 0, -timesheet_df['Day TS Hours Adj'], 0)
@@ -1255,53 +1021,176 @@ def adjust_weekly_hours(timesheet_df):
     timesheet_df['Saturday TS Hours Adj'] = np.maximum(timesheet_df['Saturday TS Hours Adj'], 0)
 
     # --- 2. Night Roster OT ---
+    # mask_night = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Night')
+    # night_deduction = np.where(mask_night, timesheet_df['Roster OT Hours'], 0)
+
+    # timesheet_df['Night TS Hours Adj'] -= night_deduction
+    # remainder = np.where(timesheet_df['Night TS Hours Adj'] < 0, -timesheet_df['Night TS Hours Adj'], 0)
+    # timesheet_df['Night TS Hours Adj'] = np.maximum(timesheet_df['Night TS Hours Adj'], 0)
+
+    # timesheet_df['Day TS Hours Adj'] -= remainder
+    # remainder = np.where(timesheet_df['Day TS Hours Adj'] < 0, -timesheet_df['Day TS Hours Adj'], 0)
+    # timesheet_df['Day TS Hours Adj'] = np.maximum(timesheet_df['Day TS Hours Adj'], 0)
+
+    # timesheet_df['Saturday TS Hours Adj'] -= remainder
+    # timesheet_df['Saturday TS Hours Adj'] = np.maximum(timesheet_df['Saturday TS Hours Adj'], 0)
+
+
+
+        # --- 2. Night Roster OT ---
     mask_night = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Night')
-    night_deduction = np.where(mask_night, timesheet_df['Weekly OT Hours'], 0)
 
-    timesheet_df['Night TS Hours Adj'] -= night_deduction
-    remainder = np.where(timesheet_df['Night TS Hours Adj'] < 0, -timesheet_df['Night TS Hours Adj'], 0)
-    timesheet_df['Night TS Hours Adj'] = np.maximum(timesheet_df['Night TS Hours Adj'], 0)
+    # Night hours are reclassified into OT (not Sunday or PH)
+    night_to_ot = np.minimum(timesheet_df.loc[mask_night, 'Night TS Hours Adj'],
+                            timesheet_df.loc[mask_night, 'Roster OT Hours'])
 
-    timesheet_df['Day TS Hours Adj'] -= remainder
-    remainder = np.where(timesheet_df['Day TS Hours Adj'] < 0, -timesheet_df['Day TS Hours Adj'], 0)
-    timesheet_df['Day TS Hours Adj'] = np.maximum(timesheet_df['Day TS Hours Adj'], 0)
+    # Move hours into OT
+    timesheet_df.loc[mask_night, 'Night TS Hours Adj'] -= night_to_ot
+    timesheet_df.loc[mask_night, 'Roster OT Hours'] = night_to_ot
 
-    timesheet_df['Saturday TS Hours Adj'] -= remainder
-    timesheet_df['Saturday TS Hours Adj'] = np.maximum(timesheet_df['Saturday TS Hours Adj'], 0)
 
     # --- 3. Public Holiday Roster OT ---
     mask_ph = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Public Holiday')
-    timesheet_df['Weekly OT Hours'] = np.where(mask_ph, 0, timesheet_df['Weekly OT Hours'])
+    timesheet_df['Roster OT Hours'] = np.where(mask_ph, 0, timesheet_df['Roster OT Hours'])
 
     # --- 4. Sunday Roster OT ---
     mask_sun = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Sunday')
-    timesheet_df['Weekly OT Hours'] = np.where(mask_sun, 0, timesheet_df['Weekly OT Hours'])
+    timesheet_df['Roster OT Hours'] = np.where(mask_sun, 0, timesheet_df['Roster OT Hours'])
 
-    # 🚨 Removed Step 5 (Saturday), since handled outside
+    # --- 5. Saturday Roster OT ---
+    mask_sat = (timesheet_df['OT Segment'] == 'Not Applicable') & (timesheet_df['Roster OT Segment'] == 'Saturday')
+
+    # Saturday Hours are reclassified into OT (not Sunday or PH)
+    sat_to_ot = np.minimum(timesheet_df.loc[mask_sat, 'Saturday TS Hours Adj'],
+                           timesheet_df.loc[mask_sat, 'Roster OT Hours'])
+    
+    # Move hours into OT
+    timesheet_df.loc[mask_sat, 'Saturday TS Hours Adj'] -= sat_to_ot
+    timesheet_df.loc[mask_sat, 'Roster OT Hours'] = sat_to_ot
+
+
 
     return timesheet_df
 
 
-# Mask for Saturday roster OT rows
-mask_sat = (
-    (timesheet_df['OT Segment'] == 'Not Applicable') &
-    (timesheet_df['Roster OT Segment'] == 'Saturday')
-)
+# # Mask for Saturday roster OT rows
+# mask_sat = (
+#     (timesheet_df['OT Segment'] == 'Not Applicable') &
+#     (timesheet_df['Roster OT Segment'] == 'Saturday')
+# )
 
-# Case 1: Weekly OT >= Saturday shift → take full Saturday shift
-full_sat_absorb = mask_sat & (timesheet_df['Weekly OT Hours'] >= timesheet_df['Saturday TS Hours Adj'])
-timesheet_df.loc[full_sat_absorb, 'Weekly OT Hours'] = timesheet_df.loc[full_sat_absorb, 'Saturday TS Hours Adj']
-timesheet_df.loc[full_sat_absorb, 'Saturday TS Hours Adj'] = 0
+# # Case 1: Weekly OT >= Saturday shift → take full Saturday shift
+# full_sat_absorb = mask_sat & (timesheet_df['Roster OT Hours'] >= timesheet_df['Saturday TS Hours Adj'])
+# timesheet_df.loc[full_sat_absorb, 'Roster OT Hours'] = timesheet_df.loc[full_sat_absorb, 'Saturday TS Hours Adj']
+# timesheet_df.loc[full_sat_absorb, 'Saturday TS Hours Adj'] = 0
 
-# Case 2: Weekly OT < Saturday shift → partially absorb Saturday
-partial_sat_absorb = mask_sat & (timesheet_df['Weekly OT Hours'] < timesheet_df['Saturday TS Hours Adj'])
-timesheet_df.loc[partial_sat_absorb, 'Saturday TS Hours Adj'] -= timesheet_df.loc[partial_sat_absorb, 'Weekly OT Hours']
-# Weekly OT Hours stays the same in this case (already less than Saturday)
+# # Case 2: Weekly OT < Saturday shift → partially absorb Saturday
+# partial_sat_absorb = mask_sat & (timesheet_df['Roster OT Hours'] < timesheet_df['Saturday TS Hours Adj'])
+# timesheet_df.loc[partial_sat_absorb, 'Saturday TS Hours Adj'] -= timesheet_df.loc[partial_sat_absorb, 'Roster OT Hours']
+# # Roster OT Hours stays the same in this case (already less than Saturday)
+
+
+
+
+
 
 
 # Apply weekly adjustment
 timesheet_df = adjust_weekly_hours(timesheet_df)
 
+
+
+
+
+# === Start of First 2 Hours OT and Post 2 Hours OT Calculations ===
+# First two hours will be on the weekly OT hours basis until told otherwise by CU or VU - 14.08.25
+# Condition: weekly cumulative hours > 76 but <= 78
+
+# Condition mask for first 2 hours OT eligibility
+mask_first_2_ot = (
+    (timesheet_df['Roster Period Total Hours'] > Max_Ord_Hrs) &
+    (timesheet_df['Roster Period Total Hours'] <= First_2_Hrs_OT_Cutoff)
+)
+
+# Amount of shift hours that fall in the 38–40 window
+first_2_hours_calc = np.minimum(
+    timesheet_df['Total TS Hours Adj'],
+    First_2_Hrs_OT_Cutoff - (timesheet_df['Roster Period Total Hours'] - timesheet_df['Total TS Hours Adj'])
+)
+
+
+
+# Weekly OT First 2 Hours and Daily OT First 2 Hours
+# Weekly OT First 2 Hours
+# Condition: Roster Cumulative Hours > Max_Ord_Hrs, not Sunday, Roster OT Flag is Y and cumulative hours before this shift are <= Max_Ord_Hrs
+# Result: no greater than 2 hours OT\
+# Need to need to cap at 2 hours if more than 2 hours OT in the week
+
+
+
+# Running total of OT hours including this row
+timesheet_df['cumu_ot'] = (
+    timesheet_df.groupby(['Employee ID Consolidated','Roster Ending'])['Roster OT Hours']
+    .cumsum()
+)
+
+# Remaining cap AT this row (not shifted)
+timesheet_df['remaining_cap'] = (2 - timesheet_df['cumu_ot']).clip(lower=0, upper=2)
+
+# Allocation for this row = min(this row’s OT, room left BEFORE this row)
+timesheet_df['OT First 2 Hours (Weekly)'] = np.minimum(
+    timesheet_df['Roster OT Hours'],
+    2 - (timesheet_df['cumu_ot'] - timesheet_df['Roster OT Hours']).clip(lower=0, upper=2)
+)
+
+# Excess goes into post-2 hours
+timesheet_df['OT Post 2 Hours (Weekly)'] = (
+    timesheet_df['Roster OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)']
+).clip(lower=0)
+
+# ensure no doubling up of OT Hours and Sunday and PH hours
+# timesheet_df['OT First 2 Hours (Weekly)'] = np.where(
+#     (timesheet_df['Roster OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N'),
+#     timesheet_df['OT First 2 Hours (Weekly)'],
+#     0
+# )
+# timesheet_df['OT Post 2 Hours (Weekly)'] = np.where(
+#     (timesheet_df['Roster OT Flag'] == 'Y') &
+#     (timesheet_df['Sunday_Penality_flag'] == 'N') &
+#     (timesheet_df['Public_Holiday_flag'] == 'N'),
+#     timesheet_df['OT Post 2 Hours (Weekly)'],
+#     0
+# )
+
+# ensure no doubling up of OT Hours and Sunday and PH hours and Saturday Hours
+timesheet_df['OT First 2 Hours (Daily)'] = np.where(
+    (timesheet_df['Daily OT Flag'] == 'Y') &
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] == 'N') & 
+    (timesheet_df['Saturday_Penality_flag'] == 'N') &
+    (timesheet_df['Roster OT Flag'] == 'N'),
+    np.clip(timesheet_df['Daily OT Hours'], 0, 2),
+    0
+)
+
+
+timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'] > 0,
+    timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)'],
+    0
+)
+
+
+# ensure no doubling up of OT Hours and Sunday and PH hours
+timesheet_df['OT Post 2 Hours (Daily)'] = np.where(
+    (timesheet_df['Daily OT Flag'] == 'Y') &
+    (timesheet_df['Sunday_Penality_flag'] == 'N') &
+    (timesheet_df['Public_Holiday_flag'] == 'N'),
+    timesheet_df['OT Post 2 Hours (Daily)'],
+    0
+)
 
 
 
@@ -1892,7 +1781,7 @@ column_order = [
 'Daily OT Flag',
 'Roster OT Flag',
 'Daily OT Hours',
-'Weekly OT Hours',
+'Roster OT Hours',
 'OT First 2 Hours',
 'OT Post 2 Hours',
 'Paid Minimum Hourly Pay Rate',
@@ -2021,7 +1910,7 @@ agg_dict = {
     'Sunday TS Hours Adj'        : 'sum',
     'Timesheet Total Time'   : 'sum',
     'Total TS Hours Adj'     : 'sum',
-    'Weekly OT Hours'        : 'sum',
+    'Roster OT Hours'        : 'sum',
     'OT First 2 Hours'       : 'sum',
     'OT Post 2 Hours'        : 'sum',
     'Breaks between work periods - Hours': 'sum',
@@ -2078,7 +1967,7 @@ timesheet_df_weekly_for_Leave = (
 #     #    'Saturday_Penality_flag', 'Sunday_Penality_flag', 
        
 #        'Total TS Hours Adj' : 'sum',
-#        'Weekly OT Hours' : 'sum',
+#        'Roster OT Hours' : 'sum',
 #        'OT First 2 Hours' : 'sum',
 #        'OT Post 2 Hours' : 'sum',
 #        'Breaks between work periods - Hours' : 'sum',
@@ -2192,7 +2081,7 @@ columns_to_drop = [
 #'Current_Sick Leave Hourly',
 #'Rate_Sick Leave Hourly',
 
-'Weekly OT Hours'
+'Roster OT Hours'
 
 ]
 
@@ -2283,9 +2172,9 @@ def calculate_overtime(group):
 timesheet_df_weekly_for_Leave = calculate_effective_hours(timesheet_df_weekly_for_Leave)
 timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.groupby(['Fortnight_Key','Roster Ending'], group_keys=False).apply(calculate_overtime)
 
-# Rename Weekly OT Hours to Weekly OT Hours (Excl Leave)
+# Rename Roster OT Hours to Roster OT Hours (Excl Leave)
 # Leave data is only provided in weekly form and not on days taken
-timesheet_df_weekly_for_Leave['Weekly OT Hours (Excl Leave)'] = timesheet_df_weekly_for_Leave['Weekly OT Hours'] 
+timesheet_df_weekly_for_Leave['Roster OT Hours (Excl Leave)'] = timesheet_df_weekly_for_Leave['Roster OT Hours'] 
 
 
 # Drop only if the columns exist in your DataFrame
@@ -2297,7 +2186,7 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.drop(columns=[col 
 # Calculate if any difference between prior calculated OT and OT Inclusive of Leave
 # Further Calculation logic can follow where we look at where to apply the addition OT i.e. First 2 Hours or Post First Two hours
 # Revisit this later if required - 3/09/2025
-timesheet_df_weekly_for_Leave['Difference between  Weekly OT (Excl Leave) and Weekly OT (Incl Leave)'] =  timesheet_df_weekly_for_Leave['Weekly_Overtime_Hours (Incl Leave)'] - timesheet_df_weekly_for_Leave['Weekly OT Hours (Excl Leave)'] 
+timesheet_df_weekly_for_Leave['Difference between  Weekly OT (Excl Leave) and Weekly OT (Incl Leave)'] =  timesheet_df_weekly_for_Leave['Weekly_Overtime_Hours (Incl Leave)'] - timesheet_df_weekly_for_Leave['Roster OT Hours (Excl Leave)'] 
 
 
 
