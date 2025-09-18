@@ -423,6 +423,66 @@ timesheet_df.loc[
     'Estimated Pay Date'
 ] -= pd.Timedelta(days=1)
 
+# Adjusted Roster Cycle for Wednesday to Tuesday 
+
+# === Set your roster cycle anchor (a Wednesday that began a known roster fortnight) ===
+# CYCLE_ANCHOR = pd.Timestamp('2023-11-01')  # <- must be a Wednesday
+
+# if CYCLE_ANCHOR.weekday() != 2:
+#     raise ValueError("CYCLE_ANCHOR must be a Wednesday")
+
+# # Find the Wednesday of the week that contains TS_Start_Date
+# wednesday_of_week = timesheet_df['TS_Start_Date'] - pd.to_timedelta((timesheet_df['TS_Start_Date'].dt.weekday - 2) % 7, unit='D')
+
+# # Whole weeks since anchor
+# weeks_since_anchor = ((wednesday_of_week - CYCLE_ANCHOR) // pd.Timedelta(days=7)).astype(int)
+
+# # Roster week number: Week 1 (even), Week 2 (odd)
+# timesheet_df['Week Number'] = np.where(weeks_since_anchor % 2 == 0, 1, 2)
+
+# # Roster Starting = Wednesday of the Week 1 in this cycle
+# timesheet_df['Roster Starting'] = np.where(
+#     timesheet_df['Week Number'] == 1,
+#     wednesday_of_week,
+#     wednesday_of_week - pd.Timedelta(days=7)
+# )
+# timesheet_df['Roster Starting'] = pd.to_datetime(timesheet_df['Roster Starting'])
+
+# # Roster markers
+# timesheet_df['Week 1 Ending']   = timesheet_df['Roster Starting'] + pd.Timedelta(days=6)   # Tuesday of Week 1
+# timesheet_df['Week 2 Starting'] = timesheet_df['Roster Starting'] + pd.Timedelta(days=7)   # Wednesday of Week 2
+# timesheet_df['Roster Ending']   = timesheet_df['Roster Starting'] + pd.Timedelta(days=13)  # Tuesday of Week 2
+
+# # Per-row Week Ending (Tuesday)
+# timesheet_df['Week Ending'] = np.where(
+#     timesheet_df['Week Number'] == 1,
+#     timesheet_df['Week 1 Ending'],
+#     timesheet_df['Roster Ending']
+# )
+
+# # === Pay Dates ===
+# # Week 1 Pay Date (Wednesday after Week 1 Ending)
+# wed_offset_w1 = (2 - timesheet_df['Week 1 Ending'].dt.weekday + 7) % 7
+# timesheet_df['Week 1 Pay Date'] = timesheet_df['Week 1 Ending'] + pd.to_timedelta(wed_offset_w1, unit='D')
+
+# # Week 2 Pay Date (Wednesday after Roster Ending)
+# wed_offset_w2 = (2 - timesheet_df['Roster Ending'].dt.weekday + 7) % 7
+# timesheet_df['Week 2 Pay Date'] = timesheet_df['Roster Ending'] + pd.to_timedelta(wed_offset_w2, unit='D')
+
+# # Final Estimated Pay Date
+# timesheet_df['Estimated Pay Date'] = np.where(
+#     timesheet_df['Week Number'] == 1,
+#     timesheet_df['Week 1 Pay Date'],
+#     timesheet_df['Week 2 Pay Date']
+# )
+
+# # === Handle Tuesday exceptions (e.g. Christmas Day, New Year's Day) ===
+# exceptions = [pd.Timestamp('2024-12-25'), pd.Timestamp('2025-01-01')]
+# timesheet_df.loc[
+#     timesheet_df['Estimated Pay Date'].isin(exceptions),
+#     'Estimated Pay Date'
+# ] -= pd.Timedelta(days=1)
+
 
 
 # === End of Roster and Pay Date Calculations ===
@@ -461,6 +521,10 @@ timesheet_df['Financial_Year'] = np.where(
 timesheet_df['Financial_Year'] = timesheet_df['Financial_Year'].fillna(0).astype(int)
 
 
+
+
+
+
 # 1) Remove perfect duplicates
 print('Perfect duplicates check:')
 # Check if your dataframe has perfect duplicates
@@ -469,6 +533,8 @@ print(len(timesheet_df), len(timesheet_df.drop_duplicates()))
 timesheet_df = timesheet_df.drop_duplicates()
 
 
+
+timesheet_df.to_excel('line477.xlsx', sheet_name='Drop_check')
 
 # 2) Weekly total hours per employee-week (same value on each row of that week)
 timesheet_df['Weekly Total Hours'] = timesheet_df.groupby(
@@ -522,7 +588,7 @@ timesheet_df = timesheet_df.drop_duplicates(
     by=['Employee ID Consolidated', 'Timesheet Start Time']
 ).reset_index(drop=True)
 
-
+timesheet_df.to_excel('line531.xlsx', sheet_name='Drop_check')
 
 # Identify next shift start and end times per employee
 timesheet_df['Next_Start_dt'] = (
@@ -1183,11 +1249,6 @@ timesheet_df['First Aid Allowance Amount'] = np.where(
 
 # Zero out hours in shift that are recorded in Day, Night, Saturday and Sunday where hours exists in 'Breaks between work periods - Hours'
 # Added to avoid confusion when client reviews file can be commented out if we prefer
-timesheet_df['Day TS Hours'] = np.where(
-    timesheet_df['Breaks between work periods - Hours'] > 0,
-    0,
-    timesheet_df['Day TS Hours']
-)
 
 timesheet_df['Day TS Hours Adj'] = np.where(
     timesheet_df['Breaks between work periods - Hours'] > 0,
@@ -1296,11 +1357,6 @@ timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
     (timesheet_df['Breaks between work periods - Hours'] * (timesheet_df['Award Minimum Hourly Pay Rate']*2)).round(2),
     0
 )
-
-print('Data types')
-dtypeList = list(timesheet_df.dtypes.items())
-print(dtypeList)
-
 timesheet_df['Total Amount (Award)'] = ( 
     timesheet_df['Night Amount (Award)'] +
     timesheet_df['Day Amount (Award)'] +
@@ -1384,6 +1440,11 @@ column_order = [
 'Sunday_Penality_flag',
 'Day TS Hours',
 'Night TS Hours',
+
+'Saturday TS Hours',
+'Sunday TS Hours',
+'PH TS Hours',
+            
 'Meal_Break_Deduction',
 'Day TS Hours Adj',
 'Night TS Hours Adj',
@@ -1522,6 +1583,9 @@ agg_dict = {
     # numeric columns (sum them up)
     'Day TS Hours'           : 'sum',
     'Night TS Hours'         : 'sum',
+    'Saturday TS Hours' : 'sum',
+    'Sunday TS Hours' : 'sum',
+    'PH TS Hours' : 'sum',
     'Day TS Hours Adj'       : 'sum',
     'Night TS Hours Adj'     : 'sum', 
     'PH TS Hours Adj'            : 'sum',
@@ -1546,6 +1610,9 @@ agg_dict = {
     'Total Amount (Award)'   : 'sum',
     'First Aid Allowance Amount': 'sum',
     'Broken Shift Allowance Amount': 'sum',
+    'Timesheet Total Time' : 'sum',
+    'Total TS Hours' : 'sum',
+    'Shift Total Time' : 'sum',
 }
 
 timesheet_df_weekly_for_Leave = (
@@ -1554,6 +1621,8 @@ timesheet_df_weekly_for_Leave = (
       .agg(agg_dict)
 )
 
+
+timesheet_df_weekly_for_Leave.to_excel('line1622.xlsx', sheet_name='shifttotaltimecheck')
 
 payroll_data = pd.read_excel(payroll_data)
 
