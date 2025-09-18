@@ -1259,8 +1259,8 @@ timesheet_df['Saturday Amount (Award)'] = np.where(
 # Condition: Sunday Penality flag is Y and PH Flag is N
 timesheet_df['Sunday Amount (Award)'] = np.where(
     #(timesheet_df['Sunday_Penality_flag'] == 'Y') 
-    (timesheet_df['Sunday TS Hours Adj'] > 0) & 
-    (timesheet_df['PH TS Hours Adj'] <= 0),
+    (timesheet_df['Sunday TS Hours Adj'] > 0),
+    #(timesheet_df['PH TS Hours Adj'] <= 0),
    # (timesheet_df['Public_Holiday_flag'] =='N'),
     (timesheet_df['Sunday TS Hours Adj'] * timesheet_df['Award Sunday Pay Rate']).round(2),
     0
@@ -1297,11 +1297,9 @@ timesheet_df['Breaks between work periods - Amount (Award)'] = np.where(
     0
 )
 
-
-
-
-
-
+print('Data types')
+dtypeList = list(timesheet_df.dtypes.items())
+print(dtypeList)
 
 timesheet_df['Total Amount (Award)'] = ( 
     timesheet_df['Night Amount (Award)'] +
