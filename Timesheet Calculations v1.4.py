@@ -5,7 +5,9 @@ import pytest
 from datetime import datetime, date, time, timedelta
 
 # File path
-timesheet_file_path = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet detail 1 Nov 2023 to 30 June 2025.xlsx"
+#timesheet_file_path = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet detail 1 Nov 2023 to 30 June 2025.xlsx"
+timesheet_file_path  = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet.csv"
+
 emplids_mapping = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Employee IDs.xlsx", sheet_name='EMPLIDS')
 
 payroll_data = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Payroll_Output.xlsx"
@@ -19,12 +21,15 @@ Max_Ord_Hrs = 76
 First_2_Hrs_OT_Cutoff = 78
 Daily_Ordinary_Hours = 7.6
 
-# Load and clean timesheet data
+
+# Load and clean timesheet data from CSV
 def load_and_clean_timesheet(file_path):
-    df = pd.read_excel(file_path, sheet_name='Timesheet details')
+    df = pd.read_csv(file_path)
     df = df.dropna(axis=1, how='all')  # Remove empty columns
 
-    df['Timesheet ID'] = df['Timesheet ID'].astype(int)
+    # Convert relevant columns to appropriate types
+    df['Timesheet ID'] = pd.to_numeric(df['Timesheet ID'], errors='coerce').astype('Int64')
+    df['Employee ID Consolidated'] = pd.to_numeric(df['Employee ID Consolidated'], errors='coerce').astype('Int64')
 
     datetime_cols = [
         'Timesheet Start Time',
@@ -35,14 +40,14 @@ def load_and_clean_timesheet(file_path):
     for col in datetime_cols:
         df[col] = pd.to_datetime(df[col], errors='coerce')
 
-    
-
+    # Extract date and time components
     df['TS_Start_Date'] = df['Timesheet Start Time'].dt.date
     df['TS_End_Date'] = df['Timesheet End Time'].dt.date
     df['TS_TimeOnly_Start'] = df['Timesheet Start Time'].dt.time
     df['TS_TimeOnly_End'] = df['Timesheet End Time'].dt.time
 
     return df
+
 
 # Calculate total hours worked
 def calculate_time_difference_in_hours(date_series, time_series_start, time_series_end):
@@ -79,19 +84,28 @@ timesheet_df = load_and_clean_timesheet(timesheet_file_path)
 
 emplids_mapping['Team member'] = emplids_mapping['Team member'].astype(str)
 
+
+timesheet_df.to_csv('line103.csv')
+
+print(timesheet_df.columns)
+
 # Merge to get Employee ID Consolidated
 timesheet_df = timesheet_df.merge(
     emplids_mapping[['Team member', 'Employee ID Consolidated']],
-    on='Team member',
+    on=['Employee ID Consolidated', 'Team member'],
     how='left'
 )
 
-timesheet_df['Employee ID Consolidated'] = (
-    timesheet_df['Employee ID Consolidated']
-    .astype(str)
-    .str.replace(r"\.0$", "", regex=True)  # strip only a trailing .0
-    .str.strip()
-)
+
+print('columns after merge')
+print(timesheet_df.columns)
+
+# timesheet_df['Employee ID Consolidated'] = (
+#     timesheet_df['Employee ID Consolidated']
+#     .astype(str)
+#     .str.replace(r"\.0$", "", regex=True)  # strip only a trailing .0
+#     .str.strip()
+# )
 
 # Drop rows where Team member is 'Anthony Knight' as not in consent list
 timesheet_df = timesheet_df[timesheet_df['Team member'] != 'Anthony Knight']
@@ -471,7 +485,6 @@ print(len(timesheet_df), len(timesheet_df.drop_duplicates()))
 timesheet_df = timesheet_df.drop_duplicates()
 
 
-
 # Weekly total hours per employee-week (same value on each row of that week)
 timesheet_df['Weekly Total Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Week Ending']
@@ -619,6 +632,8 @@ timesheet_df['Breaks between work periods Breach'] = np.where(
 # === Start of Daily and Weekly Overtime Calculations Hours ===
 ### Daily Overtime if over 10 hours in a day == Max_Ord_Hrs_Day ###
 ### 2 week roster so Ordinary Hours are 76 hours == Max_Ord_Hrs###
+
+
 
 # Daily OT Flag
 timesheet_df['Daily OT Flag'] = np.where(
@@ -823,6 +838,8 @@ timesheet_df['Saturday TS Hours Adj'] = np.where(
     timesheet_df['Saturday TS Hours Adj'] - timesheet_df['Daily OT Hours'],
     timesheet_df['Saturday TS Hours Adj']
 )
+
+
 
 
 
@@ -1269,7 +1286,7 @@ column_order = [
 'Shift Total Time',
 'Timesheet location',
 'Timesheet area',
-'Timesheet leave policy',
+
 'Timesheet Employee Comment',
 'Week Number',
 'Roster Starting',
@@ -1314,6 +1331,7 @@ column_order = [
 
 'Daily OT Flag',
 'Roster OT Flag',
+'part_time_OT_hours',
 'Daily OT Hours',
 'Roster OT Hours',
 'OT First 2 Hours',

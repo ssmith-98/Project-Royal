@@ -266,10 +266,27 @@ columns_to_keep = [
 parttime_df = parttime_df[columns_to_keep]
 
 
+parttime_df.drop_duplicates(inplace=True)
+
 parttime_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Parttime_Employees_Unmatched.csv", index=False)
 
-# IF Timesheet ID is in parttime_df, Create flag part_time_OT
-timesheet_df['part_time_OT'] = np.where(timesheet_df['Timesheet ID'].isin(parttime_df['Timesheet ID']), 'Yes', 'No')
+# Flag part-time OT
+timesheet_df['part_time_OT'] = np.where(
+    timesheet_df['Timesheet ID'].isin(parttime_df['Timesheet ID']),
+    'Yes', 
+    'No'
+)
+
+hours_diff_map = (
+    parttime_df.groupby('Timesheet ID')['Hours_Difference']
+    .sum()   # or .mean(), .max(), etc.
+)
+
+timesheet_df['part_time_OT_hours'] = (
+    timesheet_df['Timesheet ID'].map(hours_diff_map).fillna(0)
+)
+
+timesheet_df.drop_duplicates(inplace=True)
 
 
 timesheet_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet.csv", index=False)
