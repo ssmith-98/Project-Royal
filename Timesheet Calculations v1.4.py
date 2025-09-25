@@ -497,6 +497,7 @@ timesheet_df = timesheet_df.sort_values(
     by=['Employee ID Consolidated', 'Week Ending', 'Timesheet Start Time', 'Timesheet End Time']
 )
 
+
 # Weekly cumulative hours
 timesheet_df['Weekly Cumulative Hours'] = timesheet_df.groupby(
     ['Employee ID Consolidated', 'Week Ending']
@@ -576,6 +577,27 @@ timesheet_df['Gap_to_Next_Shift_Hours'] = (
     (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600
 )
 
+
+# If gap to next shift is less than 1 hour, sum hours of both shifts 
+timesheet_df['sum_of_broken_shifts'] = np.where(
+    timesheet_df['Gap_to_Next_Shift_Hours'] <= 1,
+    timesheet_df['Total TS Hours Adj'] + timesheet_df['Total TS Hours Adj'].shift(-1),
+    0
+)
+
+timesheet_df['Minimum_Hours_Topup'] = np.where(
+    (timesheet_df['Total TS Hours'] < Daily_Ordinary_Hours) &
+    (timesheet_df['Broken_Shift_Flag'] == 'N') &
+    (timesheet_df['sum_of_broken_shifts'] < Daily_Ordinary_Hours),
+    Daily_Ordinary_Hours - timesheet_df['Total TS Hours'],
+    0
+)
+    
+
+
+
+
+
 # Flag to detect last shift in dataset
 timesheet_df['Gap_Label'] = timesheet_df['Gap_to_Next_Shift_Hours'].isna().map(
     {True: "Last Shift in Review", False: "Has Next Shift"}
@@ -589,6 +611,10 @@ timesheet_df['Broken_Shift_Flag'] = np.where(
     'Y',
     'N'
 )
+
+
+
+timesheet_df.to_excel('line565.xlsx', sheet_name='Broken_Shift_Check')
 
 
 # Identify gaps less than 8 hours but greater than 1 hour between shifts (not broken shifts)
