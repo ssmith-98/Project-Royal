@@ -661,11 +661,20 @@ timesheet_df['Daily OT Hours'] = np.where(
     ((timesheet_df['Daily OT Flag'] == 'Y') & 
      (timesheet_df['Sunday_Penality_flag'] == 'N') & 
      (timesheet_df['Public_Holiday_flag'] == 'N') & 
+     # Addeed condition to exclude if part time OT hours exist
+     # === Logic is incomplete for furture development as Weekly OT considerations 
+     # === but vthere are no instances in current data set where Weekly OT exists at the same time as Part time OT
+     (timesheet_df['part_time_OT_hours'] == 0) &
      (timesheet_df['Roster OT Flag'] == 'N')),
     timesheet_df['Total TS Hours Adj'] - Max_Ord_Hrs_Day,
     0)
 
-
+# If part time OT hours exist then overwrite Daily OT Hours with part time OT hours
+timesheet_df['Daily OT Hours'] = np.where(
+    timesheet_df['part_time_OT_hours'] > 0,
+    timesheet_df['part_time_OT_hours'],
+    timesheet_df['Daily OT Hours']
+)
 
 
 # Define time boundaries
