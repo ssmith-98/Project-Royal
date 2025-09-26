@@ -572,26 +572,131 @@ timesheet_df['Broken_Shift_Flag'] = np.where(
     'N'
 )
 
-# Calculate gap in hours between current end and next start
+# # Calculate gap in hours between current end and next start
+# timesheet_df['Gap_to_Next_Shift_Hours'] = (
+#     (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600
+# )
+
+
+# # Gap forward (this shift -> next)
+# forward_sum = np.where(
+#     timesheet_df['Gap_to_Next_Shift_Hours'] <= 1,
+#     timesheet_df['Total TS Hours Adj'] + timesheet_df['Total TS Hours Adj'].shift(-1),
+#     0
+# )
+
+# # gap to previous shift
+# timesheet_df['Gap_to_Prev_Shift_Hours'] = (
+#     timesheet_df['Shift_Start']
+#     .sub(
+#         timesheet_df.groupby('Employee ID Consolidated')['Shift_End'].shift(1)
+#     )
+#     .dt.total_seconds() / 3600
+# )
+
+
+# # Gap backward (previous shift -> this)
+# backward_sum = np.where(
+#     timesheet_df['Gap_to_Prev_Shift_Hours'] <= 1,
+#     timesheet_df['Total TS Hours Adj'] + timesheet_df['Total TS Hours Adj'].shift(1),
+#     0
+# )
+
+# # Take the maximum (so you don’t double-count)
+# timesheet_df['sum_of_broken_shifts'] = np.maximum(forward_sum, backward_sum)
+
+
+# 0. — adjust these to match your DF column names
+EMP_COL = 'Employee ID Consolidated'
+START = 'Timesheet Start Time'   # your shift start
+END = 'Timesheet End Time'       # your shift end
+TOT = 'Total TS Hours Adj'
+
+# 1. Ensure datetimes and sort per employee
+timesheet_df[START] = pd.to_datetime(timesheet_df[START])
+timesheet_df[END]   = pd.to_datetime(timesheet_df[END])
+timesheet_df = timesheet_df.sort_values([EMP_COL, START]).reset_index(drop=True)
+
+# 2. Create next/previous timestamps per employee (groupby shift)
+grp = timesheet_df.groupby(EMP_COL)
+timesheet_df['Next_Start_dt'] = grp[START].shift(-1)
+timesheet_df['Prev_End_dt']   = grp[END].shift(1)
+
+# 3. Calculate gaps in hours (next and prev)
 timesheet_df['Gap_to_Next_Shift_Hours'] = (
-    (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600
+    (timesheet_df['Next_Start_dt'] - timesheet_df[END]).dt.total_seconds() / 3600.0
+)
+timesheet_df['Gap_to_Prev_Shift_Hours'] = (
+    (timesheet_df[START] - timesheet_df['Prev_End_dt']).dt.total_seconds() / 3600.0
 )
 
+# 4. Get next/prev totals in same group (so shifts don't cross employees)
+timesheet_df['Next_Total_TS_Hours_Adj'] = grp[TOT].shift(-1)
+timesheet_df['Prev_Total_TS_Hours_Adj'] = grp[TOT].shift(1)
 
-# If gap to next shift is less than 1 hour, sum hours of both shifts 
-timesheet_df['sum_of_broken_shifts'] = np.where(
-    timesheet_df['Gap_to_Next_Shift_Hours'] <= 1,
-    timesheet_df['Total TS Hours Adj'] + timesheet_df['Total TS Hours Adj'].shift(-1),
+# 5a. Pairwise approach (safe checks; require gap between 0 and 1 hour)
+forward_sum = np.where(
+    (timesheet_df['Gap_to_Next_Shift_Hours'] >= 0) & (timesheet_df['Gap_to_Next_Shift_Hours'] <= 1),
+    timesheet_df[TOT] + timesheet_df['Next_Total_TS_Hours_Adj'],
     0
 )
+
+backward_sum = np.where(
+    (timesheet_df['Gap_to_Prev_Shift_Hours'] >= 0) & (timesheet_df['Gap_to_Prev_Shift_Hours'] <= 1),
+    timesheet_df[TOT] + timesheet_df['Prev_Total_TS_Hours_Adj'],
+    0
+)
+
+timesheet_df['sum_of_broken_shifts_pairwise'] = np.maximum(forward_sum, backward_sum)
+
+# 5b. Alternative: CHAIN contiguous small-gap shifts into one group and sum them
+# (useful if you want A+B+C when gaps A->B and B->C are <= 1 hour)
+timesheet_df['is_break'] = (timesheet_df['Gap_to_Prev_Shift_Hours'] > 1) | timesheet_df['Gap_to_Prev_Shift_Hours'].isna()
+timesheet_df['broken_group'] = grp['is_break'].cumsum()  # groups increment when a break occurs
+# compute group size & group sum
+group_size = timesheet_df.groupby([EMP_COL, 'broken_group'])[TOT].transform('size')
+group_sum  = timesheet_df.groupby([EMP_COL, 'broken_group'])[TOT].transform('sum')
+# only replace with group sum if the group actually contains >1 rows (i.e., it is a "broken shift group")
+timesheet_df['sum_of_broken_shifts_chained'] = np.where(group_size > 1, group_sum, timesheet_df[TOT])
+
+
+
+
+# Minimum Ordinary Hours, inclusive of Part Time Minimum Hours
+# Calculated by taking 20% of the average weekly hours across the review period for each employee 
+# or 4 hours if the average is less than 4 hours as per the award.
+# flagged as a part time employee
+# Part time employees are 41, 356, 429 and 543
+# All other employees are full time with a minimum of 7.6 hours per day
+
+
+timesheet_df['Minimum_Daily_Ordinary_Hours'] = np.where(
+    timesheet_df['Employee ID Consolidated'] == 543,  # Part-time minimum hours
+    4,
+    np.where(
+        timesheet_df['Employee ID Consolidated'] == 41,  # Part-time minimum hours
+        6.2,
+        np.where(
+            timesheet_df['Employee ID Consolidated'] == 356,  # Part-time minimum hours
+            5.80,
+            np.where(
+                timesheet_df['Employee ID Consolidated'] == 429,  # Part-time minimum hours
+                6,
+                Daily_Ordinary_Hours  # Full-time minimum hours
+            )
+        )
+    )
+)
+    
 
 timesheet_df['Minimum_Hours_Topup'] = np.where(
-    (timesheet_df['Total TS Hours'] < Daily_Ordinary_Hours) &
-    (timesheet_df['Broken_Shift_Flag'] == 'N') &
-    (timesheet_df['sum_of_broken_shifts'] < Daily_Ordinary_Hours),
-    Daily_Ordinary_Hours - timesheet_df['Total TS Hours'],
+    (timesheet_df['sum_of_broken_shifts_chained'] < timesheet_df['Minimum_Daily_Ordinary_Hours']) &
+    (timesheet_df['Broken_Shift_Flag'] == 'N'),
+    timesheet_df['Minimum_Daily_Ordinary_Hours'] - timesheet_df['sum_of_broken_shifts_chained'],
     0
 )
+
+
     
 
 
