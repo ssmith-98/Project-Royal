@@ -291,24 +291,80 @@ timesheet_df.drop_duplicates(inplace=True)
 
 timesheet_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet.csv", index=False)
 
+
+Timesheet_with_Roster = timesheet_df.merge(
+    roster_df,
+    on='unit_id',
+    how='left',
+    suffixes=('_timesheet', '_roster')
+)
+
+Timesheet_with_Roster['Comments_Roster'] = Timesheet_with_Roster['Comments']
+
+
+columns_to_keep = [
+    'Timesheet ID',
+    'Team member',
+    'Employee ID Consolidated',
+    'Timesheet Start Time',
+    'Timesheet End Time',
+    'Start DateTime',
+    'End DateTime',
+    'part_time_OT',
+    'part_time_OT_hours',
+    'Timesheet ID',
+    'Team member',
+    'Timesheet Status',
+    'Timesheet Start Time',
+    'Timesheet End Time',
+    'Timesheet Total Time',
+    'Shift Start Time',
+    'Shift End Time',
+    'Shift Total Time',
+    'Diff',
+    'Timesheet location',
+    'Timesheet area',
+    'Timesheet leave policy',
+    'Timesheet Employee Comment',
+    'Comments_Roster',
+    'Timesheet Cost',
+    'TS_Start_Date',
+    'TS_End_Date',
+    'TS_TimeOnly_Start',
+    'TS_TimeOnly_End',
+    'Employee ID Consolidated',
+    'part_time_OT',
+    'part_time_OT_hours',
+    'Location',
+    'Employee Name',
+    'Employee Number',
+    'Start DateTime',
+    'End DateTime',
+    'Total_Hours'
+]
+
+Timesheet_with_Roster = Timesheet_with_Roster[columns_to_keep]
+
+Timesheet_with_Roster.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet_with_Roster.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # sort by Employee and Start DateTime
 merged_df = merged_df.sort_values(by=['Employee ID Consolidated', 'Timesheet Start Time'])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 day_mapping = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7}  # Monday=1, Sunday=7
@@ -361,6 +417,7 @@ merged_df['Week Ending'] = np.where(
     merged_df['Week 1 Ending'],
     merged_df['Roster Ending']
 )
+
 
 
 merged_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet_Roster_Merged.csv", index=False)

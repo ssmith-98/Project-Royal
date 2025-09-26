@@ -6,7 +6,7 @@ from datetime import datetime, date, time, timedelta
 
 # File path
 #timesheet_file_path = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet detail 1 Nov 2023 to 30 June 2025.xlsx"
-timesheet_file_path  = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet.csv"
+timesheet_file_path  = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet_with_Roster.csv"
 
 emplids_mapping = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Employee IDs.xlsx", sheet_name='EMPLIDS')
 
@@ -697,6 +697,8 @@ timesheet_df['Minimum_Hours_Topup'] = np.where(
 )
 
 
+
+
     
 
 
@@ -1286,6 +1288,13 @@ timesheet_df['Sunday TS Hours Adj'] = np.where(
 # Zero out hours in shift that are recorded in Day, Night, Saturday and Sunday where hours exists in 'Overtime'
 # Added to avoid confusion when client reviews file can be commented out if we prefer
 
+# Minumum Hours Top up Amount
+# Minmum hours tiop is payable at the Award Minimum Hourly Pay Rate
+# and is completely separate to any other allowances or penalties
+
+timesheet_df['Minimum_Hours_Topup_Amount'] = timesheet_df['Minimum_Hours_Topup'] * timesheet_df['Award Minimum Hourly Pay Rate']
+
+
 
 # Night Amount due as per award perm nights and none perm nights
 timesheet_df['Night Amount (Award)'] = np.where(
@@ -1366,14 +1375,14 @@ timesheet_df['Total Amount (Award)'] = (
     timesheet_df['OT First 2 Hours Amount (Award)'] +
     timesheet_df['OT Post 2 Hours Amount (Award)'] + 
     timesheet_df['Breaks between work periods - Amount (Award)']
+    + timesheet_df['Minimum_Hours_Topup_Amount']
 ).round(2)
 
 
 
 
 columns_to_drop = [
-    'First name',
-'Last name',
+
 #'TS_Start_Date',
 #'TS_End_Date',
 #'TS_TimeOnly_Start',
@@ -1500,6 +1509,7 @@ column_order = [
 'OT First 2 Hours Amount (Award)',
 'OT Post 2 Hours Amount (Award)',
 'Breaks between work periods - Amount (Award)',
+'Minimum_Hours_Topup_Amount',
 'Total Amount (Award)',
 'First Aid Allowance Amount',
 
