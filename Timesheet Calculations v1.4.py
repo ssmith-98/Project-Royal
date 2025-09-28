@@ -668,7 +668,7 @@ timesheet_df['sum_of_broken_shifts_chained'] = np.where(group_size > 1, group_su
 # Calculated by taking 20% of the average weekly hours across the review period for each employee 
 # or 4 hours if the average is less than 4 hours as per the award.
 # flagged as a part time employee
-# Part time employees are 41, 356, 429 and 543
+# Part time employees are 41, 356, 429, 457 and 543
 # All other employees are full time with a minimum of 7.6 hours per day
 
 
@@ -684,7 +684,11 @@ timesheet_df['Minimum_Daily_Ordinary_Hours'] = np.where(
             np.where(
                 timesheet_df['Employee ID Consolidated'] == 429,  # Part-time minimum hours
                 6,
-                Daily_Ordinary_Hours  # Full-time minimum hours
+                np.where(
+                    timesheet_df['Employee ID Consolidated'] == 457,  # Part-time minimum hours
+                    6.8,
+                    Daily_Ordinary_Hours  # Full-time minimum hours
+                )
             )
         )
     )
@@ -698,6 +702,16 @@ timesheet_df['Minimum_Hours_Topup'] = np.where(
     0
 )
 
+
+
+# Mannual Adjustments
+# Timesheet ID == 60478
+# Adjust Minimum Hours Topup and Amount to 0 as sick leave was take for that shift
+timesheet_df['Minimum_Hours_Topup'] = np.where(
+    timesheet_df['Timesheet ID'] == 60478, 
+    0,
+    timesheet_df['Minimum_Hours_Topup']
+)
 
 
 
@@ -722,8 +736,6 @@ timesheet_df['Broken_Shift_Flag'] = np.where(
 )
 
 
-
-timesheet_df.to_excel('line565.xlsx', sheet_name='Broken_Shift_Check')
 
 
 # Identify gaps less than 8 hours but greater than 1 hour between shifts (not broken shifts)
@@ -1296,7 +1308,14 @@ timesheet_df['Sunday TS Hours Adj'] = np.where(
 
 timesheet_df['Minimum_Hours_Topup_Amount'] = timesheet_df['Minimum_Hours_Topup'] * timesheet_df['Award Minimum Hourly Pay Rate']
 
-
+# Mannual Adjustments
+# Timesheet ID == 60478
+# Adjust Minimum Hours Topup and Amount to 0 as sick leave was take for that shift
+timesheet_df['Minimum_Hours_Topup_Amount'] = np.where(
+    timesheet_df['Timesheet ID'] == 60478,
+    0,
+    timesheet_df['Minimum_Hours_Topup_Amount']
+)
 
 # Night Amount due as per award perm nights and none perm nights
 timesheet_df['Night Amount (Award)'] = np.where(
@@ -1435,10 +1454,15 @@ column_order = [
 'Shift Start Time',
 'Shift End Time',
 'Shift Total Time',
+'Start DateTime_Roster', 
+'End DateTime_Roster', 
+'Roster_Hours',
 'Timesheet location',
 'Timesheet area',
 
 'Timesheet Employee Comment',
+'Comments_Roster',
+
 'Week Number',
 'Roster Starting',
 'Week Ending',

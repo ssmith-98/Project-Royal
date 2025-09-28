@@ -345,6 +345,9 @@ columns_to_keep = [
 
 Timesheet_with_Roster = Timesheet_with_Roster[columns_to_keep]
 
+# End DateTime rename to Emd DateTime_Roster
+Timesheet_with_Roster = Timesheet_with_Roster.rename(columns={'Start DateTime': 'Start DateTime_Roster', 'End DateTime': 'End DateTime_Roster', 'Total_Hours': 'Roster_Hours'})
+
 Timesheet_with_Roster.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet_with_Roster.csv", index=False)
 
 
