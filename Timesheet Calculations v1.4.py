@@ -610,7 +610,9 @@ timesheet_df['Broken_Shift_Flag'] = np.where(
 EMP_COL = 'Employee ID Consolidated'
 START = 'Timesheet Start Time'   # your shift start
 END = 'Timesheet End Time'       # your shift end
-TOT = 'Total TS Hours Adj'
+#TOT = 'Total TS Hours Adj'
+# Not using the Meal_Break_Deduction column here, as we want to consider actual worked hours
+TOT = 'Total TS Hours'  # use actual worked hours, not adjusted for meal breaks
 
 # 1. Ensure datetimes and sort per employee
 timesheet_df[START] = pd.to_datetime(timesheet_df[START])
@@ -631,19 +633,19 @@ timesheet_df['Gap_to_Prev_Shift_Hours'] = (
 )
 
 # 4. Get next/prev totals in same group (so shifts don't cross employees)
-timesheet_df['Next_Total_TS_Hours_Adj'] = grp[TOT].shift(-1)
-timesheet_df['Prev_Total_TS_Hours_Adj'] = grp[TOT].shift(1)
+timesheet_df['Next_Total_TS_Hours'] = grp[TOT].shift(-1)
+timesheet_df['Prev_Total_TS_Hours'] = grp[TOT].shift(1)
 
 # 5a. Pairwise approach (safe checks; require gap between 0 and 1 hour)
 forward_sum = np.where(
     (timesheet_df['Gap_to_Next_Shift_Hours'] >= 0) & (timesheet_df['Gap_to_Next_Shift_Hours'] <= 1),
-    timesheet_df[TOT] + timesheet_df['Next_Total_TS_Hours_Adj'],
+    timesheet_df[TOT] + timesheet_df['Next_Total_TS_Hours'],
     0
 )
 
 backward_sum = np.where(
     (timesheet_df['Gap_to_Prev_Shift_Hours'] >= 0) & (timesheet_df['Gap_to_Prev_Shift_Hours'] <= 1),
-    timesheet_df[TOT] + timesheet_df['Prev_Total_TS_Hours_Adj'],
+    timesheet_df[TOT] + timesheet_df['Prev_Total_TS_Hours'],
     0
 )
 
@@ -1455,6 +1457,7 @@ column_order = [
 'PH TS Hours',
             
 'Meal_Break_Deduction',
+'Minimum_Daily_Ordinary_Hours',
 'Day TS Hours Adj',
 'Night TS Hours Adj',
 'Perm_Night_Ratio_Flag',
@@ -1464,6 +1467,8 @@ column_order = [
 'PH TS Hours Adj',
 'Total TS Hours',
 'Total TS Hours Adj',
+'Minimum_Hours_Topup',
+
 'Weekly Cumulative Hours',
 'Roster Cumulative Hours',
 #'Weekly Total Hours',
@@ -1608,6 +1613,7 @@ agg_dict = {
     'OT First 2 Hours'       : 'sum',
     'OT Post 2 Hours'        : 'sum',
     'Breaks between work periods - Hours': 'sum',
+    'Minimum_Hours_Topup'    : 'sum',
 
     'Night Amount (Award)'   : 'sum',
     'Day Amount (Award)'     : 'sum',
@@ -1618,6 +1624,7 @@ agg_dict = {
     'OT First 2 Hours Amount (Award)'  : 'sum',
     'OT Post 2 Hours Amount (Award)'   : 'sum',
     'Breaks between work periods - Amount (Award)': 'sum',
+    'Minimum_Hours_Topup_Amount' : 'sum',
     'Total Amount (Award)'   : 'sum',
     'First Aid Allowance Amount': 'sum',
     'Broken Shift Allowance Amount': 'sum',
