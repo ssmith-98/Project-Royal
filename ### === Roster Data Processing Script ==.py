@@ -217,22 +217,59 @@ merged_df['Roster_Hours'] = (merged_df['End DateTime'] - merged_df['Start DateTi
 # Calculate the difference
 merged_df['Hours_Difference'] = merged_df['Timesheet_Hours'] - merged_df['Roster_Hours']
 
+merged_df.drop_duplicates(inplace=True)
 
-merged_df['relaxed_key'] = timesheet_df['relaxed_key']
+merged_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Merged_Timesheet_Roster.csv", index=False)
 
-unmatched_df = merged_df[merged_df['Start DateTime'].isna()]
+
+# Build relaxed_key from timesheet-side values
+merged_df['relaxed_key'] = (
+    merged_df['Employee ID Consolidated'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+    + '_' +
+    merged_df['Timesheet Start Time'].dt.date.astype(str)
+)
+
 
 
 # Merge unmatched rows using relaxed key
-second_merge = unmatched_df.merge(
-    roster_df[['relaxed_key', 'Start DateTime', 'End DateTime']],  # include only necessary columns
+second_merge = merged_df.merge(
+    roster_df[['relaxed_key', 'Start DateTime', 'End DateTime']], 
+    #roster_df[['relaxed_key']],  # include only necessary columns
     left_on='relaxed_key',
     right_on='relaxed_key',
     how='left'
 )
 
+
+
+print(second_merge.columns)
+
 # Calculate Roster hours
 second_merge['Roster_Hours_2'] = (second_merge['End DateTime_y'] - second_merge['Start DateTime_y']).dt.total_seconds() / 3600.0
+
+
+# Consolidate Roster Hours, Start DateTime, End DateTime
+second_merge['Roster_Hours'] = np.where(
+    second_merge['Roster_Hours'].isna() | (second_merge['Roster_Hours'] == 0),
+    second_merge['Roster_Hours_2'],
+    second_merge['Roster_Hours']
+)
+
+second_merge['Start DateTime_x'] = np.where(
+    second_merge['Start DateTime_x'].isna(),
+    second_merge['Start DateTime_y'],
+    second_merge['Start DateTime_x']
+)
+second_merge['End DateTime_x'] = np.where(
+    second_merge['End DateTime_x'].isna(),
+    second_merge['End DateTime_y'],
+    second_merge['End DateTime_x']
+)
+
+# Drop Roster_Hours_2, Start DateTime_y, End DateTime_y
+#second_merge = second_merge.drop(columns=['Roster_Hours_2', 'Start DateTime_y', 'End DateTime_y'])
+
+second_merge.drop_duplicates(inplace=True)
 
 
 second_merge.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Second_Merge_Unmatched.csv", index=False)
@@ -242,7 +279,7 @@ part_time_employees = [543, 41, 356, 429]
 
 parttime_df = second_merge[second_merge['Employee ID Consolidated'].astype(int).isin(part_time_employees)]
 
-parttime_df['Hours_Difference'] = parttime_df['Timesheet_Hours'] - parttime_df['Roster_Hours_2']
+parttime_df['Hours_Difference'] = parttime_df['Timesheet_Hours'] - parttime_df['Roster_Hours']
 
 
 # Drop rows where Hours_Difference is negative
@@ -257,9 +294,9 @@ columns_to_keep = [
     'Timesheet Start Time',
     'Timesheet End Time',
     'Timesheet_Hours',
-    'Start DateTime_y',
-    'Start DateTime_y',
-    'Roster_Hours_2',
+    'Start DateTime_x',
+    'Start DateTime_x',
+    'Roster_Hours',
     'Hours_Difference'
 ]
 
@@ -271,8 +308,8 @@ parttime_df.drop_duplicates(inplace=True)
 parttime_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Parttime_Employees_Unmatched.csv", index=False)
 
 # Flag part-time OT
-timesheet_df['part_time_OT'] = np.where(
-    timesheet_df['Timesheet ID'].isin(parttime_df['Timesheet ID']),
+second_merge['part_time_OT'] = np.where(
+    second_merge['Timesheet ID'].isin(parttime_df['Timesheet ID']),
     'Yes', 
     'No'
 )
@@ -282,181 +319,215 @@ hours_diff_map = (
     .sum()   # or .mean(), .max(), etc.
 )
 
-timesheet_df['part_time_OT_hours'] = (
-    timesheet_df['Timesheet ID'].map(hours_diff_map).fillna(0)
-)
-
-timesheet_df.drop_duplicates(inplace=True)
-
-
-timesheet_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet.csv", index=False)
-
-
-Timesheet_with_Roster = timesheet_df.merge(
-    roster_df,
-    on='unit_id',
-    how='left',
-    suffixes=('_timesheet', '_roster')
-)
-
-Timesheet_with_Roster['Comments_Roster'] = Timesheet_with_Roster['Comments']
-
-
-columns_to_keep = [
-    'Timesheet ID',
-    'Team member',
-    'Employee ID Consolidated',
-    'Timesheet Start Time',
-    'Timesheet End Time',
-    'Start DateTime',
-    'End DateTime',
-    'part_time_OT',
-    'part_time_OT_hours',
-    'Timesheet ID',
-    'Team member',
-    'Timesheet Status',
-    'Timesheet Start Time',
-    'Timesheet End Time',
-    'Timesheet Total Time',
-    'Shift Start Time',
-    'Shift End Time',
-    'Shift Total Time',
-    'Diff',
-    'Timesheet location',
-    'Timesheet area',
-    'Timesheet leave policy',
-    'Timesheet Employee Comment',
-    'Comments_Roster',
-    'Timesheet Cost',
-    'TS_Start_Date',
-    'TS_End_Date',
-    'TS_TimeOnly_Start',
-    'TS_TimeOnly_End',
-    'Employee ID Consolidated',
-    'part_time_OT',
-    'part_time_OT_hours',
-    'Location',
-    'Employee Name',
-    'Employee Number',
-    'Start DateTime',
-    'End DateTime',
-    'Total_Hours'
-]
-
-Timesheet_with_Roster = Timesheet_with_Roster[columns_to_keep]
-
-# End DateTime rename to Emd DateTime_Roster
-Timesheet_with_Roster = Timesheet_with_Roster.rename(columns={'Start DateTime': 'Start DateTime_Roster', 'End DateTime': 'End DateTime_Roster', 'Total_Hours': 'Roster_Hours'})
-
-Timesheet_with_Roster.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet_with_Roster.csv", index=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# sort by Employee and Start DateTime
-merged_df = merged_df.sort_values(by=['Employee ID Consolidated', 'Timesheet Start Time'])
-
-
-day_mapping = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7}  # Monday=1, Sunday=7
-
-# # Create the DOTW column and apply the mapping
-merged_df['DOTW'] = merged_df['Timesheet Start Time'].dt.weekday.map(day_mapping)
-# Included Endshift to cover nightshift hours that go into Sat or Sunday
-merged_df['DOTW_ENDShift'] = merged_df['Timesheet End Time'].dt.weekday.map(day_mapping)
-# Custom numeric mapping: Saturday = 1, Sunday = 2, ..., Friday = 7
-# Add Day of the Week as text (e.g. Monday, Tuesday, etc.)
-merged_df['Weekday'] = pd.to_datetime(merged_df['TS_Start_Date']).dt.day_name()
-
-
-
-
-# Ensure datetime
-merged_df['TS_Start_Date'] = pd.to_datetime(merged_df['TS_Start_Date'], errors='coerce')
-
-
-# === Set your roster cycle anchor (a Monday that began a known roster fortnight) ===
-CYCLE_ANCHOR = pd.Timestamp('2023-10-30')  # <- adjust to your real cycle start
-if CYCLE_ANCHOR.weekday() != 0:
-    raise ValueError("CYCLE_ANCHOR must be a Monday")
-
-# Monday of the week that contains TS_Start_Date
-monday_of_week = merged_df['TS_Start_Date'] - pd.to_timedelta(merged_df['TS_Start_Date'].dt.weekday, unit='D')
-
-# Whole weeks since anchor
-weeks_since_anchor = ((monday_of_week - CYCLE_ANCHOR) // pd.Timedelta(days=7)).astype(int)
-
-# Roster week number: Week 1 (even), Week 2 (odd)
-merged_df['Week Number'] = np.where(weeks_since_anchor % 2 == 0, 1, 2)
-
-# Roster Starting = Monday of the Week 1 in this cycle
-merged_df['Roster Starting'] = np.where(
-    merged_df['Week Number'] == 1,
-    monday_of_week,
-    monday_of_week - pd.Timedelta(days=7)
-)
-merged_df['Roster Starting'] = pd.to_datetime(merged_df['Roster Starting'])
-
-# Roster markers
-merged_df['Week 1 Ending']   = merged_df['Roster Starting'] + pd.Timedelta(days=6)   # Sun of Week 1
-merged_df['Week 2 Starting'] = merged_df['Roster Starting'] + pd.Timedelta(days=7)   # Mon of Week 2
-merged_df['Roster Ending']   = merged_df['Roster Starting'] + pd.Timedelta(days=13)  # Sun of Week 2
-
-# Per-row Week Ending (Sun)
-merged_df['Week Ending'] = np.where(
-    merged_df['Week Number'] == 1,
-    merged_df['Week 1 Ending'],
-    merged_df['Roster Ending']
+second_merge['part_time_OT_hours'] = (
+    second_merge['Timesheet ID'].map(hours_diff_map).fillna(0)
 )
 
 
 
-merged_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet_Roster_Merged.csv", index=False)
-
-condensed_comparison = merged_df
-
-
-condensed_comparison['EmpID_Week_Key'] = (
-    condensed_comparison['Employee ID Consolidated'].astype(str) + "_" +
-    condensed_comparison['Roster Ending'].dt.strftime("%Y-%m-%d") + "_W" +
-    condensed_comparison['Week Number'].astype(str)
-)
-
+# Rename columns for clarity
+second_merge = second_merge.rename(columns={
+    'Comments': 'Comments_Roster',
+    'Location': 'Roster_Location',
+    'Start Time': 'Roster_Start_Time',
+    'End Time': 'Roster_End_Time',
+    'Start DateTime_x': 'Roster_Start DateTime',
+    'End DateTime_x': 'Roster_End DateTime'
+})
 
 
-agg_dict = {
-    # identifiers / dates (use first_nonnull)
-    'Timesheet ID' : 'first',
-    'Employee ID Consolidated': 'first',
-    'Team member': 'first',
-    'Week Ending': 'first',
-    # numeric columns (sum them up)
-    'Timesheet_Hours': 'sum',
-    'Roster_Hours': 'sum'
+
+second_merge.drop_duplicates(inplace=True)
+
+second_merge = second_merge.drop(columns=['Roster_Hours_2', 'Start DateTime_y', 'End DateTime_y',
+                                          'Week Number',
+                                            'Roster Starting',
+                                            'Week 1 Ending',
+                                            'Week 2 Starting',
+                                            'Roster Ending',
+                                            'Week Ending',
+                                            'relaxed_key_roster',
+                                            'Total_Hours',
+                                            'relaxed_key',
+                                            'unit_id',
+                                            'relaxed_key_timesheet',
+                                            'Employee Number',
+                                            'Employee Name',
+                                            'Timesheet_Hours'
+                                          
+
+
+                                            ])
+
+
+second_merge.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet_withRoster.csv", index=False)
+
+
+# Timesheet_with_Roster = timesheet_df.merge(
+#     roster_df,
+#     on='unit_id',
+#     how='left',
+#     suffixes=('_timesheet', '_roster')
+# )
+
+# Timesheet_with_Roster['Comments_Roster'] = Timesheet_with_Roster['Comments']
+
+
+# columns_to_keep = [
+#     'Timesheet ID',
+#     'Team member',
+#     'Employee ID Consolidated',
+#     'Timesheet Start Time',
+#     'Timesheet End Time',
+#     'Start DateTime',
+#     'End DateTime',
+#     'part_time_OT',
+#     'part_time_OT_hours',
+#     'Timesheet ID',
+#     'Team member',
+#     'Timesheet Status',
+#     'Timesheet Start Time',
+#     'Timesheet End Time',
+#     'Timesheet Total Time',
+#     'Shift Start Time',
+#     'Shift End Time',
+#     'Shift Total Time',
+#     'Diff',
+#     'Timesheet location',
+#     'Timesheet area',
+#     'Timesheet leave policy',
+#     'Timesheet Employee Comment',
+#     'Comments_Roster',
+#     'Timesheet Cost',
+#     'TS_Start_Date',
+#     'TS_End_Date',
+#     'TS_TimeOnly_Start',
+#     'TS_TimeOnly_End',
+#     'Employee ID Consolidated',
+#     'part_time_OT',
+#     'part_time_OT_hours',
+#     'Location',
+#     'Employee Name',
+#     'Employee Number',
+#     'Start DateTime',
+#     'End DateTime',
+#     'Total_Hours'
+# ]
+
+# Timesheet_with_Roster = Timesheet_with_Roster[columns_to_keep]
+
+# # End DateTime rename to Emd DateTime_Roster
+# Timesheet_with_Roster = Timesheet_with_Roster.rename(columns={'Start DateTime': 'Start DateTime_Roster', 'End DateTime': 'End DateTime_Roster', 'Total_Hours': 'Roster_Hours'})
+
+# Timesheet_with_Roster.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet_with_Roster.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # sort by Employee and Start DateTime
+# merged_df = merged_df.sort_values(by=['Employee ID Consolidated', 'Timesheet Start Time'])
+
+
+# day_mapping = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7}  # Monday=1, Sunday=7
+
+# # # Create the DOTW column and apply the mapping
+# merged_df['DOTW'] = merged_df['Timesheet Start Time'].dt.weekday.map(day_mapping)
+# # Included Endshift to cover nightshift hours that go into Sat or Sunday
+# merged_df['DOTW_ENDShift'] = merged_df['Timesheet End Time'].dt.weekday.map(day_mapping)
+# # Custom numeric mapping: Saturday = 1, Sunday = 2, ..., Friday = 7
+# # Add Day of the Week as text (e.g. Monday, Tuesday, etc.)
+# merged_df['Weekday'] = pd.to_datetime(merged_df['TS_Start_Date']).dt.day_name()
+
+
+
+
+# # Ensure datetime
+# merged_df['TS_Start_Date'] = pd.to_datetime(merged_df['TS_Start_Date'], errors='coerce')
+
+
+# # === Set your roster cycle anchor (a Monday that began a known roster fortnight) ===
+# CYCLE_ANCHOR = pd.Timestamp('2023-10-30')  # <- adjust to your real cycle start
+# if CYCLE_ANCHOR.weekday() != 0:
+#     raise ValueError("CYCLE_ANCHOR must be a Monday")
+
+# # Monday of the week that contains TS_Start_Date
+# monday_of_week = merged_df['TS_Start_Date'] - pd.to_timedelta(merged_df['TS_Start_Date'].dt.weekday, unit='D')
+
+# # Whole weeks since anchor
+# weeks_since_anchor = ((monday_of_week - CYCLE_ANCHOR) // pd.Timedelta(days=7)).astype(int)
+
+# # Roster week number: Week 1 (even), Week 2 (odd)
+# merged_df['Week Number'] = np.where(weeks_since_anchor % 2 == 0, 1, 2)
+
+# # Roster Starting = Monday of the Week 1 in this cycle
+# merged_df['Roster Starting'] = np.where(
+#     merged_df['Week Number'] == 1,
+#     monday_of_week,
+#     monday_of_week - pd.Timedelta(days=7)
+# )
+# merged_df['Roster Starting'] = pd.to_datetime(merged_df['Roster Starting'])
+
+# # Roster markers
+# merged_df['Week 1 Ending']   = merged_df['Roster Starting'] + pd.Timedelta(days=6)   # Sun of Week 1
+# merged_df['Week 2 Starting'] = merged_df['Roster Starting'] + pd.Timedelta(days=7)   # Mon of Week 2
+# merged_df['Roster Ending']   = merged_df['Roster Starting'] + pd.Timedelta(days=13)  # Sun of Week 2
+
+# # Per-row Week Ending (Sun)
+# merged_df['Week Ending'] = np.where(
+#     merged_df['Week Number'] == 1,
+#     merged_df['Week 1 Ending'],
+#     merged_df['Roster Ending']
+# )
+
+
+
+# merged_df.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet_Roster_Merged.csv", index=False)
+
+# condensed_comparison = merged_df
+
+
+# condensed_comparison['EmpID_Week_Key'] = (
+#     condensed_comparison['Employee ID Consolidated'].astype(str) + "_" +
+#     condensed_comparison['Roster Ending'].dt.strftime("%Y-%m-%d") + "_W" +
+#     condensed_comparison['Week Number'].astype(str)
+# )
+
+
+
+# agg_dict = {
+#     # identifiers / dates (use first_nonnull)
+#     'Timesheet ID' : 'first',
+#     'Employee ID Consolidated': 'first',
+#     'Team member': 'first',
+#     'Week Ending': 'first',
+#     # numeric columns (sum them up)
+#     'Timesheet_Hours': 'sum',
+#     'Roster_Hours': 'sum'
    
     
-}
+# }
 
-condensed_comparison = (
-    condensed_comparison
-      .groupby('EmpID_Week_Key', as_index=False)
-      .agg(agg_dict)
-)
+# condensed_comparison = (
+#     condensed_comparison
+#       .groupby('EmpID_Week_Key', as_index=False)
+#       .agg(agg_dict)
+# )
 
-# Calculate the difference
-condensed_comparison['Hours_Difference'] = condensed_comparison['Timesheet_Hours'] - condensed_comparison['Roster_Hours']
-condensed_comparison = condensed_comparison.sort_values(by=['Employee ID Consolidated', 'Week Ending'])
+# # Calculate the difference
+# condensed_comparison['Hours_Difference'] = condensed_comparison['Timesheet_Hours'] - condensed_comparison['Roster_Hours']
+# condensed_comparison = condensed_comparison.sort_values(by=['Employee ID Consolidated', 'Week Ending'])
 
-condensed_comparison.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Condensed_Timesheet_Roster_Comparison.csv", index=False)
+# condensed_comparison.to_csv(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Condensed_Timesheet_Roster_Comparison.csv", index=False)

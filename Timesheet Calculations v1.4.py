@@ -6,7 +6,7 @@ from datetime import datetime, date, time, timedelta
 
 # File path
 #timesheet_file_path = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet detail 1 Nov 2023 to 30 June 2025.xlsx"
-timesheet_file_path  = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Timesheet_with_Roster.csv"
+timesheet_file_path  = r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Processed_Timesheet_withRoster.csv"
 
 emplids_mapping = pd.read_excel(r"C:\Users\smits\OneDrive - SW Accountants & Advisors Pty Ltd\Desktop\Client Projects\Project Royal\Employee IDs.xlsx", sheet_name='EMPLIDS')
 
@@ -663,7 +663,7 @@ timesheet_df['sum_of_broken_shifts_chained'] = np.where(group_size > 1, group_su
 
 
 
-
+# === Minimum Hours Top-up Calculations ===
 # Minimum Ordinary Hours, inclusive of Part Time Minimum Hours
 # Calculated by taking 20% of the average weekly hours across the review period for each employee 
 # or 4 hours if the average is less than 4 hours as per the award.
@@ -713,9 +713,9 @@ timesheet_df['Minimum_Hours_Topup'] = np.where(
     timesheet_df['Minimum_Hours_Topup']
 )
 
+# === End of Minimum Hours Top-up Calculations ===
 
 
-    
 
 
 
@@ -1177,6 +1177,7 @@ payrates_subset = payrates_df[
     ['Employee ID', 'FY Starting', 'FY Ending', 
      'Broken Shift Allowance Rate',
      'First Aid Allowance Rate',
+     'Meal Allowance Rate',
      'Paid Minimum Hourly Pay Rate',
     'Award Minimum Hourly Pay Rate',
     'Award Night Pay Rate',
@@ -1261,6 +1262,28 @@ timesheet_df['First Aid Allowance Amount'] = np.where(
     0
 )
 # === End of First Aid and Broken Shift Calcs
+
+
+# === Meal Allowance Calculations ===
+timesheet_df['Timesheet End Time'] = pd.to_datetime(timesheet_df['Timesheet End Time'], errors='coerce')
+timesheet_df['Roster_End DateTime'] = pd.to_datetime(timesheet_df['Roster_End DateTime'], errors='coerce')
+
+
+# Meal allowance if shift ends 1 hour or more after rostered end time
+valid_mask = timesheet_df['Timesheet End Time'].notna() & timesheet_df['Roster_End DateTime'].notna()
+timesheet_df['Meal_Allowance_Flag'] = 'N'  # default
+timesheet_df.loc[valid_mask, 'Meal_Allowance_Flag'] = np.where(
+    timesheet_df.loc[valid_mask, 'Timesheet End Time'] - timesheet_df.loc[valid_mask, 'Roster_End DateTime'] >= pd.Timedelta(hours=1),
+    'Y',
+    'N'
+)
+
+timesheet_df['Meal_Allowance_Amount'] = np.where(
+    timesheet_df['Meal_Allowance_Flag'] == 'Y',
+    timesheet_df['Meal Allowance Rate'],
+    0
+)
+  
 
 
 # Zero out hours in shift that are recorded in Day, Night, Saturday and Sunday where hours exists in 'Breaks between work periods - Hours'
@@ -1454,8 +1477,8 @@ column_order = [
 'Shift Start Time',
 'Shift End Time',
 'Shift Total Time',
-'Start DateTime_Roster', 
-'End DateTime_Roster', 
+'Roster_Start DateTime', 
+'Roster_End DateTime', 
 'Roster_Hours',
 'Timesheet location',
 'Timesheet area',
@@ -1481,6 +1504,8 @@ column_order = [
 'PH TS Hours',
             
 'Meal_Break_Deduction',
+'Meal_Allowance_Flag',
+'Meal_Allowance_Amount',
 'Minimum_Daily_Ordinary_Hours',
 'Day TS Hours Adj',
 'Night TS Hours Adj',
@@ -1797,9 +1822,6 @@ def calculate_effective_hours(df):
     # 
     df['Effective_Total'] = df['Total TS Hours Adj'] + df['Effective_Leave']
     return df
-
-
-
 
 
 
