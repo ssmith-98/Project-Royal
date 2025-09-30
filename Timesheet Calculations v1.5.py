@@ -1923,9 +1923,12 @@ agg_dict = {
     'Total Amount (Award)'   : 'sum',
     'First Aid Allowance Amount': 'sum',
     'Broken Shift Allowance Amount': 'sum',
+    'Meal_Allowance_Amount' : 'sum',
     'Timesheet Total Time' : 'sum',
     'Total TS Hours' : 'sum',
     'Shift Total Time' : 'sum',
+    # Pull in Min Hourly rate for Leave Loading use
+    'Award Minimum Hourly Pay Rate' : 'mean'
 }
 
 timesheet_df_weekly_for_Leave = (
@@ -2011,8 +2014,8 @@ columns_to_drop = [
 'Current_Supervisor Allowance',
 
 # LEAVE RELATED COLUMNS TO DROP
-'Rate_Annual Holiday Loadi...',
-'Current_Annual Holiday Loadi...',
+#'Rate_Annual Holiday Loadi...',
+#'Current_Annual Holiday Loadi...',
 'Rate_Annual Leave',
 'Current_Annual Leave',
 'Rate_Holiday Hourly',
@@ -2042,6 +2045,37 @@ timesheet_df_weekly_for_Leave['Total Leave Hours'] = (
     .fillna(0)
     .sum(axis=1)
 )
+
+
+
+timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.rename(
+    columns={'Qty_Annual Holiday Loadi...': 'Qty_Annual_Holiday_Loading'}
+)
+timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading'] = pd.to_numeric(timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading'])
+
+
+# Get actual QTY of leave for loading rather than dollar amount
+timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading_AMOUNT'] = (timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading'] * 0.175).round(2)
+timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading'] = timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading'] / timesheet_df_weekly_for_Leave['Rate_Hourly Day']
+
+# Fixes to Payroll data missing values
+
+# Fixes to Payroll data missing values
+timesheet_df_weekly_for_Leave.loc[513, 'Qty_Annual_Holiday_Loading'] = 12
+timesheet_df_weekly_for_Leave.loc[834, 'Qty_Annual_Holiday_Loading'] = 36
+timesheet_df_weekly_for_Leave.loc[1531, 'Qty_Annual_Holiday_Loading'] = 16
+timesheet_df_weekly_for_Leave.loc[1787, 'Qty_Annual_Holiday_Loading'] = 32
+timesheet_df_weekly_for_Leave.loc[1825, 'Qty_Annual_Holiday_Loading'] = 18
+
+timesheet_df_weekly_for_Leave['Total Leave Loading (SW Calc)'] =  ((timesheet_df_weekly_for_Leave['Total Leave Hours'] * timesheet_df_weekly_for_Leave['Award Minimum Hourly Pay Rate']) * 0.175).round(2)
+
+
+timesheet_df_weekly_for_Leave['Leave Loading Hour Diff'] = (timesheet_df_weekly_for_Leave['Total Leave Hours'] - timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading']).round(2)
+
+timesheet_df_weekly_for_Leave['Leave Loading Amount Discrepancy'] = (timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading_AMOUNT'] - timesheet_df_weekly_for_Leave['Total Leave Loading (SW Calc)']).round(2)
+
+
+
 
 # Used for grouping later
 timesheet_df_weekly_for_Leave['Fortnight_Key'] = (
@@ -2197,14 +2231,23 @@ timesheet_df_weekly_for_Leave['Total Worked Hours (Paystubs)'] = total_hours.rou
 # Total Amount (Award) = Day + Night + Sat + Sunday + PH + OT First 2 + OT Post First 2 + Breaks between work period penality 
 # Allied Oridnary Hours and Penality Amount = Day + Night + Saturday + Sunday + PH 
 # Disrepancy for Pay as per Award Vs Actual payments made by Allied at higher rates but with no OT calcualtions 
-timesheet_df_weekly_for_Leave['Discrepancy_Oridnary_Hours_and_OverTime'] = timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Amount'] -  timesheet_df_weekly_for_Leave['Total Amount (Award)']
+timesheet_df_weekly_for_Leave['Discrepancy_Actual_Vs_Award (Excluding Allowances)'] = timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Amount'] -  timesheet_df_weekly_for_Leave['Total Amount (Award)']
 
 # Difference between
 timesheet_df_weekly_for_Leave['Discrepancy_First_Aid_Allowance'] = timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] - timesheet_df_weekly_for_Leave['First Aid Allowance Amount']
 
 # Allied made no payments for Broken Shift Allowance so Disrepancy is exactly equal to our calcs
-timesheet_df_weekly_for_Leave['Discrepancy_Broken_Shift_Allowance_Amount'] = timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount']
+timesheet_df_weekly_for_Leave['Discrepancy_Broken_Shift_Allowance'] = timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount']
 
+timesheet_df_weekly_for_Leave['Discrepancy_Meal_Allowance'] = timesheet_df_weekly_for_Leave['Meal_Allowance_Amount']
+
+timesheet_df_weekly_for_Leave['Discrepancy_Actual_Vs_Award (Including Allowances)'] = (timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Amount'] + \
+                                                                                      timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] )  - \
+                                                                                      (timesheet_df_weekly_for_Leave['Total Amount (Award)' ] + \
+                                                                                       timesheet_df_weekly_for_Leave['First Aid Allowance Amount'] + \
+                                                                                       timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount'] + \
+                                                                                       timesheet_df_weekly_for_Leave['Meal_Allowance_Amount'])
+                                                                                      
 
 
 timesheet_df_weekly_for_Leave.to_excel('SW_Payment_Calcs_As_Per_Award_Vs_ Allied_Actual_Pay.xlsx', sheet_name='Award_Vs_Actuals') 

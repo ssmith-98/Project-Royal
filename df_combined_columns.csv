@@ -12,7 +12,6 @@ EmpID_PayDay_Key
 Current_Adjustments to Net Pay
 Current_Annual Holiday Loadi...
 Current_Annual Leave
-Current_BACK PAY
 Current_Bereavement
 Current_Extra Payment
 Current_First Aid Allowance
@@ -42,7 +41,6 @@ Current_Supervisor Allowance
 Qty_Adjustments to Net Pay
 Qty_Annual Holiday Loadi...
 Qty_Annual Leave
-Qty_BACK PAY
 Qty_Bereavement
 Qty_Extra Payment
 Qty_First Aid Allowance
@@ -72,7 +70,6 @@ Qty_Supervisor Allowance
 Rate_Adjustments to Net Pay
 Rate_Annual Holiday Loadi...
 Rate_Annual Leave
-Rate_BACK PAY
 Rate_Bereavement
 Rate_Extra Payment
 Rate_First Aid Allowance
