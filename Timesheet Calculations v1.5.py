@@ -331,21 +331,6 @@ timesheet_df['Same_Day'] = (
     timesheet_df['Start_dt'].dt.date == timesheet_df['Next_Start_dt'].dt.date
 )
 
-# # Apply Broken Shift rules
-# # Condition: Same day, both shifts < Daily_Ordinary_Hours
-# timesheet_df['Broken_Shift_Flag'] = np.where(
-#     (timesheet_df['Same_Day'])  & 
-#       # And the ROster date time is not null then we have a broken shift
-#     # And the next shift is less than Daily Ordinary Hours
-#     (timesheet_df['Roster_Start DateTime'].notnull()) & 
-#     (timesheet_df['Next_Shift_Duration_Hours'] < Daily_Ordinary_Hours),
-#     'Y',
-#     'N'
-# )
-
-
-
-
 # -------------------------------
 # Apply Broken Shift rules
 # -------------------------------
@@ -1706,7 +1691,7 @@ column_order = [
     'Timesheet ID (Combined Shift)',
 'Team member',
 'Employee ID Consolidated',
-'Timesheet Status',
+#'Timesheet Status',
 'Timesheet Start Time',
 'Timesheet End Time',
 'Financial_Year',
@@ -1747,7 +1732,7 @@ column_order = [
 'PH TS Hours',
             
 'Meal_Break_Deduction',
-'Meal_Allowance_Flag',
+#'Meal_Allowance_Flag',
 'Meal_Allowance_Amount',
 'Minimum_Daily_Ordinary_Hours',
 'Day TS Hours Adj',
@@ -1762,7 +1747,7 @@ column_order = [
 'Broken Shift Topup Hours',
 'Minimum_Hours_Topup',
 
-'Weekly Cumulative Hours',
+#'Weekly Cumulative Hours',
 'Roster Cumulative Hours',
 #'Weekly Total Hours',
 #'Roster Period Total Hours',
@@ -1920,6 +1905,7 @@ agg_dict = {
     'OT Post 2 Hours Amount (Award)'   : 'sum',
     'Breaks between work periods - Amount (Award)': 'sum',
     'Minimum_Hours_Topup_Amount' : 'sum',
+    'Broken_Shift_Topup_Amount' : 'sum',
     'Total Amount (Award)'   : 'sum',
     'First Aid Allowance Amount': 'sum',
     'Broken Shift Allowance Amount': 'sum',
@@ -2024,6 +2010,11 @@ columns_to_drop = [
 'Current_Holiday Loading',
 'Rate_Holiday Salary',
 'Current_Holiday Salary',
+
+'Qty_Public Holiday Not Worked',
+'Rate_Public Holiday Not Worked',
+'Current_Public Holiday Not Worked',
+'Fortnight_Total',
 
 
 'Rate_Sick Leave Salary',
