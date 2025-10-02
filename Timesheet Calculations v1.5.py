@@ -825,7 +825,7 @@ timesheet_df['Minimum_Hours_Topup'] = np.where(
     timesheet_df['Minimum_Daily_Ordinary_Hours'].fillna(0) - timesheet_df['Total TS Hours'].fillna(0),
     0
 )
-
+# No instances where it is an issue in our output file but the award says Minimum Ordinary Hours so need to ensure that we don't top up a shift that is fully Roster OT
 
 
 # Mannual Adjustments
@@ -1685,7 +1685,48 @@ timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date']).dt
 
 
 
+
+
+# Build EmpID_PayDay_Key (EmpID + Pay Date)
+# Ensure it's datetime
+timesheet_df['Estimated Pay Date'] = pd.to_datetime(
+    timesheet_df['Estimated Pay Date'], errors='coerce'
+)
+
+# Now safe to format
+timesheet_df['EmpID_PayDay_Key'] = (
+    timesheet_df['Employee ID Consolidated'].astype(str) + "_" +
+    timesheet_df['Estimated Pay Date'].dt.strftime("%Y-%m-%d")
+)
+
+
+
+# Ensure datetime types
+timesheet_df['TS_Start_Date'] = pd.to_datetime(timesheet_df['TS_Start_Date'])
+timesheet_df['Roster Ending'] = pd.to_datetime(timesheet_df['Roster Ending'])
+
+# Calculate the difference in days
+timesheet_df['Days Before Roster End'] = (timesheet_df['Roster Ending'] - timesheet_df['TS_Start_Date']).dt.days
+
+# Assign Week Number based on the 7-day threshold
+timesheet_df['Week Number'] = timesheet_df['Days Before Roster End'].apply(
+    lambda x: 1 if x >= 7 else 2
+)
+
+
+# Create Unique key on Employee Id, Roster Ending and Week Number for later aggregation
+timesheet_df['EmpID_Week_Key'] = (
+    timesheet_df['Employee ID Consolidated'].astype(str) + "_" +
+    timesheet_df['Roster Ending'].dt.strftime("%Y-%m-%d") + "_W" +
+    timesheet_df['Week Number'].astype(str)
+)
+
+
+
+
 column_order = [
+    'EmpID_PayDay_Key',
+    'EmpID_Week_Key',
 
     'Timesheet ID',
     'Timesheet ID (Combined Shift)',
@@ -1744,6 +1785,7 @@ column_order = [
 'PH TS Hours Adj',
 'Total TS Hours',
 'Total TS Hours Adj',
+'Total TS Hours (OT Adj)',
 'Broken Shift Topup Hours',
 'Minimum_Hours_Topup',
 
@@ -1802,6 +1844,9 @@ column_order = [
 ]
 # Reorder columns
 timesheet_df = timesheet_df[column_order]
+
+
+
 
 
 
@@ -1912,6 +1957,7 @@ agg_dict = {
     'Meal_Allowance_Amount' : 'sum',
     'Timesheet Total Time' : 'sum',
     'Total TS Hours' : 'sum',
+    'Total TS Hours (OT Adj)' : 'sum',
     'Shift Total Time' : 'sum',
     # Pull in Min Hourly rate for Leave Loading use
     'Award Minimum Hourly Pay Rate' : 'mean'
@@ -2068,65 +2114,112 @@ timesheet_df_weekly_for_Leave['Leave Loading Amount Discrepancy'] = (timesheet_d
 
 
 
-# Used for grouping later
+# Create a unique key for each employee and roster period to group data later
 timesheet_df_weekly_for_Leave['Fortnight_Key'] = (
     timesheet_df_weekly_for_Leave['Employee ID Consolidated'].astype(str) + '_' +
     timesheet_df_weekly_for_Leave['Roster Ending'].astype(str)
 )
 
 
+
+
+
+
 def calculate_effective_hours(df):
     df = df.copy()
-    
-    # Step 1: Adjust leave if payout condition triggered
-    df['Effective_Leave'] = np.where(
-        # Adjusted logic so never goes over the ordinary hours wihtin a week
-        # Prevents counting paid out leave
-        ((df['Total Leave Hours'] + df['Total TS Hours Adj']) > 38),
-        #(df['Total Leave Hours'] > 38) & (df['Total TS Hours Adj'] > 0),
 
-        #(df['Total TS Hours Adj'] > 38) & (df['Total Leave Hours'] > 0),
-        0,
-        df['Total Leave Hours']
+    # Step 1: Calculate effective leave hours
+    # Exclude leave in Week 2 entirely
+   
+    df['Effective_Leave'] = np.where(
+        df['Week Number'] == 2,
+        0,  # Always exclude leave in Week 2
+        np.where(
+            (df['Total Leave Hours'] + df['Total TS Hours (OT Adj)']) > 38,
+            38 - df['Total TS Hours (OT Adj)'],  # Only include enough leave to reach 38 hours
+            df['Total Leave Hours']  # Otherwise, include all leave hours
+        )
     )
-    
-    # 
-    df['Effective_Total'] = df['Total TS Hours Adj'] + df['Effective_Leave']
+
+
+
+
+    # Step 2: Calculate total effective hours (adjusted timesheet + effective leave)
+    df['Effective_Total'] = df['Total TS Hours (OT Adj)'] + df['Effective_Leave']
+
     return df
+
+
+# def calculate_overtime(group):
+#     # Step 1: Calculate total hours for the fortnight
+#     fortnight_total = group['Effective_Total'].sum()
+    
+#     # Step 2: Only show the fortnight total on Week 2 rows
+#     group['Fortnight_Total'] = np.nan
+#     group.loc[group['Week Number'] == 2, 'Fortnight_Total'] = fortnight_total
+
+#     # Step 3: Calculate excess hours over the maximum ordinary hours (e.g., 76 for 2 weeks)
+#     excess = max(fortnight_total - Max_Ord_Hrs, 0)
+
+#     # Step 4: Calculate overtime per week
+#     group = group.sort_values('Week Number')  # Ensure weeks are in order
+#     ot = []
+#     for _, row in group.iterrows():
+#         # If Week 2 has no adjusted hours but has leave, don't count as overtime
+#         if (row['Week Number'] == 2) and (row['Total TS Hours (OT Adj)'] == 0) and (row['Effective_Leave'] > 0):
+#             ot_hours = 0
+#         else:
+#             # Allocate overtime from adjusted hours, up to the remaining excess
+#             ot_hours = min(row['Total TS Hours (OT Adj)'], excess)
+#             excess -= ot_hours
+
+#         ot.append(ot_hours)
+
+#     # Step 5: Cosmetic adjustment – show all overtime in the first Week 2 row
+#     week2_idx = group[group['Week Number'] == 2].index
+#     if len(week2_idx) > 0:
+#         group['Weekly_Overtime_Hours (Incl Leave)'] = np.nan
+#         group.loc[week2_idx[0], 'Weekly_Overtime_Hours (Incl Leave)'] = sum(ot)
+
+#     return group
 
 
 
 def calculate_overtime(group):
-    # Calculate fortnight total
+    # Step 1: Calculate total hours for the fortnight
     fortnight_total = group['Effective_Total'].sum()
     
-    # Only show Fortnight_Total on Week 2
+    # Step 2: Only show the fortnight total on Week 2 rows
     group['Fortnight_Total'] = np.nan
     group.loc[group['Week Number'] == 2, 'Fortnight_Total'] = fortnight_total
 
-    # Compute excess hours
+    # Step 3: Calculate excess hours over the maximum ordinary hours (e.g., 76 for 2 weeks)
     excess = max(fortnight_total - Max_Ord_Hrs, 0)
 
-    # Keep original OT calculation intact
-    group = group.sort_values('Week Number')
+    # Step 4: Calculate overtime per week
+    group = group.sort_values('Week Number')  # Ensure weeks are in order
     ot = []
     for _, row in group.iterrows():
-        if (row['Week Number'] == 2) and (row['Total TS Hours Adj'] == 0) and (row['Effective_Leave'] > 0):
-            ot_hours = 0
+        # Always exclude leave from Week 2
+        if row['Week Number'] == 2:
+            effective_hours = row['Total TS Hours (OT Adj)']
         else:
-            ot_hours = min(row['Total TS Hours Adj'], excess)
-            excess -= ot_hours
+            effective_hours = row['Effective_Total']
 
+        # Allocate overtime from adjusted hours, up to the remaining excess
+        ot_hours = min(effective_hours, excess)
+        excess -= ot_hours
         ot.append(ot_hours)
 
-    # Cosmetic: shift OT to Week 2
+    # Step 5: Cosmetic adjustment – show all overtime in the first Week 2 row
     week2_idx = group[group['Week Number'] == 2].index
+    group['Weekly_Overtime_Hours (Incl Leave)'] = np.nan
     if len(week2_idx) > 0:
-        # Put all OT in the first Week 2 row
-        group['Weekly_Overtime_Hours (Incl Leave)'] = np.nan
         group.loc[week2_idx[0], 'Weekly_Overtime_Hours (Incl Leave)'] = sum(ot)
 
     return group
+
+
 
 
 
@@ -2152,6 +2245,9 @@ timesheet_df_weekly_for_Leave = timesheet_df_weekly_for_Leave.drop(columns=[col 
 # Revisit this later if required - 3/09/2025
 timesheet_df_weekly_for_Leave['Difference between  Weekly OT (Excl Leave) and Weekly OT (Incl Leave)'] =  timesheet_df_weekly_for_Leave['Weekly_Overtime_Hours (Incl Leave)'] - timesheet_df_weekly_for_Leave['Roster OT Hours (Excl Leave)'] 
 
+timesheet_df_weekly_for_Leave['Weekly_Overtime_Hours (Incl Leave)'].rename(
+    'Roster_Overtime_Hours (Incl Leave)'
+)
 
 
 # Define pairs of quantity and rate columns that represent different types of worked hours
