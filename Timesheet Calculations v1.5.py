@@ -181,6 +181,11 @@ timesheet_df = timesheet_df.sort_values(by=['Employee ID Consolidated', 'Timeshe
 #     (timesheet_df['Next_Start_dt'] - timesheet_df['End_dt']).dt.total_seconds() / 3600.0
 # ).clip(lower=0)
 
+
+
+# G'Day Mate!
+
+
 # === Start of Shift Gap and Duration Calculations ===
 
 def calculate_shift_gaps(timesheet_df, emp_col='Employee ID Consolidated',
@@ -2134,9 +2139,15 @@ def calculate_effective_hours(df):
     df['Effective_Leave'] = np.where(
         df['Week Number'] == 2,
         0,  # Always exclude leave in Week 2
+
+
+    # Change Threshold to be where hours worked + Leave is greatet than 50 effective leave = 0 
+
+
         np.where(
-            (df['Total Leave Hours'] + df['Total TS Hours (OT Adj)']) > 38,
-            38 - df['Total TS Hours (OT Adj)'],  # Only include enough leave to reach 38 hours
+            (df['Total Leave Hours'] + df['Total TS Hours (OT Adj)']) > 50,
+            0,
+             #np.maximum(38 - df['Total TS Hours (OT Adj)'], 0),  # Include only enough leave to reach 38 hours
             df['Total Leave Hours']  # Otherwise, include all leave hours
         )
     )
