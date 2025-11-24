@@ -2348,6 +2348,69 @@ timesheet_df_weekly_for_Leave['Discrepancy_Actual_Vs_Award (Including Allowances
                                                                                       
 
 
+
 timesheet_df_weekly_for_Leave.to_excel('SW_Payment_Calcs_As_Per_Award_Vs_ Allied_Actual_Pay.xlsx', sheet_name='Award_Vs_Actuals') 
 
+entitlements_data = timesheet_df_weekly_for_Leave.copy()
 
+entitlements_data['Overtime Hours Discrepancy'] = -(entitlements_data['OT First 2 Hours Amount (Award)']  + entitlements_data['OT Post 2 Hours Amount (Award)'])
+
+entitlements_data['Night Amount Discrepancy'] =  (entitlements_data['Qty_Hourly Night'] * entitlements_data['Rate_Hourly Night']) - entitlements_data['Night Amount (Award)']
+
+entitlements_data['Saturday Amount Discrepancy'] = (entitlements_data['Rate_Hourly Saturday'] * entitlements_data['Qty_Hourly Saturday']) - entitlements_data['Saturday Amount (Award)'] 
+
+entitlements_data['Sunday Amount Discrepancy'] = (entitlements_data['Qty_Hourly Sunday'] * entitlements_data['Rate_Hourly Sunday']) -  entitlements_data['Sunday Amount (Award)'] 
+
+entitlements_data['Public Holiday Amount Discrepancy'] = (entitlements_data['Rate_Public Holiday Hourly'] * entitlements_data['Qty_Public Holiday Hourly']) - entitlements_data['Public Holiday Amount (Award)'] 
+
+
+column_toKeep = [
+    'EmpID_Week_Key',
+'EmpID_PayDay_Key',
+'Employee ID Consolidated',
+'Estimated Pay Date',
+'Financial_Year',
+'Roster Starting',
+'Week Ending',
+'Roster Ending',
+'Week Number',
+'Team member',
+# 'Day TS Hours',
+# 'Night TS Hours',
+# 'Saturday TS Hours',
+# 'Sunday TS Hours',
+# 'PH TS Hours',
+# 'Day TS Hours Adj',
+# 'Night TS Hours Adj',
+# 'PH TS Hours Adj',
+# 'Saturday TS Hours Adj',
+# 'Sunday TS Hours Adj',
+# 'Timesheet Total Time',
+# 'Total TS Hours Adj',
+'OT First 2 Hours',
+'OT Post 2 Hours',
+'Breaks between work periods - Hours',
+'Minimum_Hours_Topup',
+'Breaks between work periods - Amount (Award)',
+'Minimum_Hours_Topup_Amount',
+'Broken_Shift_Topup_Amount',
+'First Aid Allowance Amount',
+'Broken Shift Allowance Amount',
+'Meal_Allowance_Amount',
+'Leave Loading Amount Discrepancy',
+'Discrepancy_First_Aid_Allowance',
+'Discrepancy_Broken_Shift_Allowance',
+'Discrepancy_Meal_Allowance',
+'Overtime Hours Discrepancy',
+'Night Amount Discrepancy',
+'Saturday Amount Discrepancy',
+'Sunday Amount Discrepancy',
+'Public Holiday Amount Discrepancy',
+'Allied Oridnary Hours and Penality Amount'
+
+]
+
+entitlements_data = entitlements_data[column_toKeep]
+
+
+entitlements_data.to_excel('Entitlements_Discrepancy_Check.xlsx', sheet_name='Entitlements_Check')
