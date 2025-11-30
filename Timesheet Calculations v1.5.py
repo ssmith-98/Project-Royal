@@ -2413,4 +2413,39 @@ column_toKeep = [
 entitlements_data = entitlements_data[column_toKeep]
 
 
+
+
 entitlements_data.to_excel('Entitlements_Discrepancy_Check.xlsx', sheet_name='Entitlements_Check')
+
+
+entitlements_data_negative = entitlements_data.copy()
+
+entitlements_data_negative['Breaks between work periods - Amount (Award)'] = -1 * entitlements_data_negative['Breaks between work periods - Amount (Award)']
+entitlements_data_negative['Minimum_Hours_Topup_Amount'] = -1 *  entitlements_data_negative['Minimum_Hours_Topup_Amount']
+entitlements_data_negative['Broken_Shift_Topup_Amount'] = -1 * entitlements_data_negative['Broken_Shift_Topup_Amount']
+
+
+
+# Negative values only 
+entitlements_data_negative = entitlements_data_negative[
+    
+    (entitlements_data_negative['Minimum_Hours_Topup_Amount'] < 0) |
+    (entitlements_data_negative['Broken_Shift_Topup_Amount'] < 0) |
+    (entitlements_data_negative['Breaks between work periods - Amount (Award)'] < 0) |
+    (entitlements_data['Overtime Hours Discrepancy'] < 0) |
+    (entitlements_data['Night Amount Discrepancy'] < 0) |
+    (entitlements_data['Saturday Amount Discrepancy'] < 0) |
+    (entitlements_data['Sunday Amount Discrepancy'] < 0) |
+    (entitlements_data['Public Holiday Amount Discrepancy'] < 0) |
+    (entitlements_data['Leave Loading Amount Discrepancy'] < 0) |
+    (entitlements_data['Discrepancy_First_Aid_Allowance'] < 0) |
+    (entitlements_data['Discrepancy_Broken_Shift_Allowance'] < 0) |
+    (entitlements_data['Discrepancy_Meal_Allowance'] < 0) 
+]
+
+print(entitlements_data_negative.dtypes)
+
+
+
+
+entitlements_data_negative.to_excel('Entitlements_Discrepancy_Check_Negative_Values_Only.xlsx', sheet_name='Entitlements_Negative_Check')
