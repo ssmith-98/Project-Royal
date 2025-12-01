@@ -2084,6 +2084,14 @@ columns_to_drop = [
 
 timesheet_df_weekly_for_Leave['Total Leave Hours'] = (
     timesheet_df_weekly_for_Leave[['Qty_Holiday Hourly', 'Qty_Annual Leave', 'Qty_Sick Leave Hourly']]
+   
+    .fillna(0)
+    .sum(axis=1)
+)
+
+timesheet_df_weekly_for_Leave['Total Leave Hours (Excl Sick)'] = (
+     # Removed Sick Leave as not applicable for Leave Loading
+    timesheet_df_weekly_for_Leave[['Qty_Holiday Hourly', 'Qty_Annual Leave']]
     .fillna(0)
     .sum(axis=1)
 )
@@ -2109,10 +2117,12 @@ timesheet_df_weekly_for_Leave.loc[1531, 'Qty_Annual_Holiday_Loading'] = 16
 timesheet_df_weekly_for_Leave.loc[1787, 'Qty_Annual_Holiday_Loading'] = 32
 timesheet_df_weekly_for_Leave.loc[1825, 'Qty_Annual_Holiday_Loading'] = 18
 
-timesheet_df_weekly_for_Leave['Total Leave Loading (SW Calc)'] =  ((timesheet_df_weekly_for_Leave['Total Leave Hours'] * timesheet_df_weekly_for_Leave['Award Minimum Hourly Pay Rate']) * 0.175).round(2)
 
 
-timesheet_df_weekly_for_Leave['Leave Loading Hour Diff'] = (timesheet_df_weekly_for_Leave['Total Leave Hours'] - timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading']).round(2)
+timesheet_df_weekly_for_Leave['Total Leave Loading (SW Calc)'] =  ((timesheet_df_weekly_for_Leave['Total Leave Hours (Excl Sick)'] * timesheet_df_weekly_for_Leave['Award Minimum Hourly Pay Rate']) * 0.175).round(2)
+
+
+timesheet_df_weekly_for_Leave['Leave Loading Hour Diff'] = (timesheet_df_weekly_for_Leave['Total Leave Hours (Excl Sick)'] - timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading']).round(2)
 
 timesheet_df_weekly_for_Leave['Leave Loading Amount Discrepancy'] = (timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading_AMOUNT'] - timesheet_df_weekly_for_Leave['Total Leave Loading (SW Calc)']).round(2)
 
