@@ -2349,14 +2349,31 @@ timesheet_df_weekly_for_Leave['Discrepancy_Broken_Shift_Allowance'] = timesheet_
 
 timesheet_df_weekly_for_Leave['Discrepancy_Meal_Allowance'] = timesheet_df_weekly_for_Leave['Meal_Allowance_Amount']
 
-timesheet_df_weekly_for_Leave['Discrepancy_Actual_Vs_Award (Including Allowances)'] = (timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Amount'] + \
-                                                                                      timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] )  - \
-                                                                                      (timesheet_df_weekly_for_Leave['Total Amount (Award)' ] + \
-                                                                                       timesheet_df_weekly_for_Leave['First Aid Allowance Amount'] + \
-                                                                                       timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount'] + \
-                                                                                       timesheet_df_weekly_for_Leave['Meal_Allowance_Amount'])
-                                                                                      
 
+timesheet_df_weekly_for_Leave['Allied Total Payments (Including Allowances)'] = timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Amount'] + \
+                             timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] + \
+                             timesheet_df_weekly_for_Leave['Qty_Annual_Holiday_Loading_AMOUNT'] 
+
+
+timesheet_df_weekly_for_Leave['Award Total Payments (Including Allowances)'] = timesheet_df_weekly_for_Leave['Total Amount (Award)' ] + \
+                             timesheet_df_weekly_for_Leave['First Aid Allowance Amount'] + \
+                                timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount'] + \
+                                timesheet_df_weekly_for_Leave['Meal_Allowance_Amount'] + \
+                                timesheet_df_weekly_for_Leave['Total Leave Loading (SW Calc)']
+
+
+
+timesheet_df_weekly_for_Leave.to_excel('line1724.xlsx', sheet_name='shifttotaltimecheck2')
+
+
+# timesheet_df_weekly_for_Leave['Discrepancy_Actual_Vs_Award (Including Allowances)'] = (timesheet_df_weekly_for_Leave['Allied Oridnary Hours and Penality Amount'] + \
+#                                                                                       timesheet_df_weekly_for_Leave['Current_First Aid Allowance'] )  - \
+#                                                                                       (timesheet_df_weekly_for_Leave['Total Amount (Award)' ] + \
+#                                                                                        timesheet_df_weekly_for_Leave['First Aid Allowance Amount'] + \
+#                                                                                        timesheet_df_weekly_for_Leave['Broken Shift Allowance Amount'] + \
+#                                                                                        timesheet_df_weekly_for_Leave['Meal_Allowance_Amount'])
+                                                                                      
+timesheet_df_weekly_for_Leave['Discrepancy_Actual_Vs_Award (Including Allowances)'] = timesheet_df_weekly_for_Leave['Allied Total Payments (Including Allowances)'] - timesheet_df_weekly_for_Leave['Award Total Payments (Including Allowances)']
 
 
 timesheet_df_weekly_for_Leave.to_excel('SW_Payment_Calcs_As_Per_Award_Vs_ Allied_Actual_Pay.xlsx', sheet_name='Award_Vs_Actuals') 
