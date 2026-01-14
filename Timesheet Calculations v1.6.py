@@ -728,16 +728,6 @@ exceptions = [pd.Timestamp('2024-12-25'), pd.Timestamp('2025-01-01')]
 timesheet_df.loc[timesheet_df['Estimated Pay Date'].isin(exceptions), 'Estimated Pay Date'] -= pd.Timedelta(days=1)
 
 
-# Pay Dates
-# Week 1 Pay Date (Wednesday after Week 1 Ending)
-wed_offset_w1 = (2 - timesheet_df['Week 1 Ending'].dt.weekday + 7) % 7
-timesheet_df['Week 1 Pay Date'] = timesheet_df['Week 1 Ending'] + pd.to_timedelta(wed_offset_w1, unit='D')
-
-# Week 2 Pay Date (Wednesday after Roster Ending)
-wed_offset_w2 = (2 - timesheet_df['Roster Ending'].dt.weekday + 7) % 7
-timesheet_df['Week 2 Pay Date'] = timesheet_df['Roster Ending'] + pd.to_timedelta(wed_offset_w2, unit='D')
-
-
 
 
 
@@ -1092,7 +1082,7 @@ def assign_roster_ot_segment(timesheet_df):
     """
 
     def get_roster_ot_segment(row):
-        if not row['Roster OT Flag']:
+        if not row['Roster OT Flag'] != 'Y':
             return 'Not Applicable'
 
         start = row['Timesheet Start Time']
@@ -1137,29 +1127,41 @@ timesheet_df = assign_roster_ot_segment(timesheet_df)
 
 
 
-# Condition 1: all hours are OT if cumulative before this shift > Max_Ord_Hrs
-condition1 = (
-    (timesheet_df['Roster OT Flag'] == 'Y') &
-    ((timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj']) > Max_Ord_Hrs)
+# # Condition 1: all hours are OT if cumulative before this shift > Max_Ord_Hrs
+# condition1 = (
+#     (timesheet_df['Roster OT Flag'] == 'Y') &
+#     ((timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj']) > Max_Ord_Hrs)
+# )
+
+# # # Condition 2: shift pushes cumulative over Max_Ord_Hrs (partially OT)
+# condition2 = (timesheet_df['Roster OT Flag'] == 'Y')
+
+# timesheet_df['Roster OT Hours'] = np.where(
+#     condition1,
+#     # All adjusted hours are OT
+#     timesheet_df['Total TS Hours Adj'],
+#     np.where(
+#         condition2,
+#         # Part of this shift is OT = adjusted shift hours - remaining ordinary capacity
+#         timesheet_df['Total TS Hours Adj'] - (
+#             Max_Ord_Hrs - (timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj'])
+#         ),
+#         0
+#     )
+# )
+
+# # Ensure OT hours don't go negative
+# timesheet_df['Roster OT Hours'] = timesheet_df['Roster OT Hours'].clip(lower=0)
+
+
+# Correct row-level roster OT:
+# Remaining ordinary capacity BEFORE this shift = Max_Ord_Hrs - (cumulative - this shift's hours)
+prev_cum = timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours (OT Adj)']
+remaining_ord_cap = (Max_Ord_Hrs - prev_cum).clip(lower=0)
+
+timesheet_df['Roster OT Hours'] = np.maximum(
+    timesheet_df['Total TS Hours (OT Adj)'] - remaining_ord_cap, 0
 )
-
-# Condition 2: shift pushes cumulative over Max_Ord_Hrs (partially OT)
-condition2 = (timesheet_df['Roster OT Flag'] == 'Y')
-
-timesheet_df['Roster OT Hours'] = np.where(
-    condition1,
-    # All adjusted hours are OT
-    timesheet_df['Total TS Hours Adj'],
-    np.where(
-        condition2,
-        # Part of this shift is OT = adjusted shift hours - remaining ordinary capacity
-        timesheet_df['Total TS Hours Adj'] - (
-            Max_Ord_Hrs - (timesheet_df['Roster Cumulative Hours'] - timesheet_df['Total TS Hours Adj'])
-        ),
-        0
-    )
-)
-
 
 
 
@@ -1175,8 +1177,7 @@ timesheet_df['Roster OT Hours'] = np.where(
 
 
 
-# Ensure OT hours don't go negative
-timesheet_df['Roster OT Hours'] = timesheet_df['Roster OT Hours'].clip(lower=0)
+
 
 # === End of Daily and Weekly Overtime Calculations Hours ===
 
@@ -1321,29 +1322,60 @@ timesheet_df = adjust_weekly_hours(timesheet_df)
 #     timesheet_df['Roster OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)']
 # ).clip(lower=0)
 
-# First 2 hours of Roster OT (capped at 2)
-timesheet_df['OT First 2 Hours (Weekly)'] = np.clip(timesheet_df['Roster OT Hours'], 0, 2)
+# # First 2 hours of Roster OT (capped at 2)
+# timesheet_df['OT First 2 Hours (Weekly)'] = np.clip(timesheet_df['Roster OT Hours'], 0, 2)
 
-# Antyhing above 2 goes into post-2
-timesheet_df['OT Post 2 Hours (Weekly)'] = (
-    timesheet_df['Roster OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)']
+# # Antyhing above 2 goes into post-2
+# timesheet_df['OT Post 2 Hours (Weekly)'] = (
+#     timesheet_df['Roster OT Hours'] - timesheet_df['OT First 2 Hours (Weekly)']
+# ).clip(lower=0)
+
+
+# # First 2 hours of daily OT (capped at 2)
+# timesheet_df['OT First 2 Hours (Daily)'] = np.clip(timesheet_df['Daily OT Hours'], 0, 2)
+
+# # Anything above 2 goes into post-2
+# timesheet_df['OT Post 2 Hours (Daily)'] = (
+#     timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)']
+# ).clip(lower=0)
+
+# Add the Daily and Weekly OT first 2 hours and post 2 hours as there is no overlap
+
+#timesheet_df['OT First 2 Hours'] = timesheet_df['OT First 2 Hours (Weekly)'] + timesheet_df['OT First 2 Hours (Daily)']
+#timesheet_df['OT Post 2 Hours'] = timesheet_df['OT Post 2 Hours (Weekly)'] + timesheet_df['OT Post 2 Hours (Daily)']
+
+
+# Roster-wise cumsum of roster OT
+timesheet_df['cumu_ot_cycle'] = timesheet_df.groupby(
+    ['Employee ID Consolidated','Roster Ending']
+)['Roster OT Hours'].cumsum()
+
+# First 2 hours per roster cycle (allocate to earliest eligible lines; max total = 2)
+timesheet_df['OT First 2 Hours (Cycle)'] = np.minimum(
+    timesheet_df['Roster OT Hours'],
+    (2 - (timesheet_df['cumu_ot_cycle'] - timesheet_df['Roster OT Hours'])).clip(lower=0)
+)
+
+# Post-2 per cycle = remainder
+timesheet_df['OT Post 2 Hours (Cycle)'] = (
+    timesheet_df['Roster OT Hours'] - timesheet_df['OT First 2 Hours (Cycle)']
 ).clip(lower=0)
 
-
-# First 2 hours of daily OT (capped at 2)
+# Daily OT (unchanged)
 timesheet_df['OT First 2 Hours (Daily)'] = np.clip(timesheet_df['Daily OT Hours'], 0, 2)
-
-# Anything above 2 goes into post-2
 timesheet_df['OT Post 2 Hours (Daily)'] = (
     timesheet_df['Daily OT Hours'] - timesheet_df['OT First 2 Hours (Daily)']
 ).clip(lower=0)
 
+# Final totals (cycle + daily)
+timesheet_df['OT First 2 Hours'] = (
+    timesheet_df['OT First 2 Hours (Cycle)'] + timesheet_df['OT First 2 Hours (Daily)']
+)
+timesheet_df['OT Post 2 Hours'] = (
+    timesheet_df['OT Post 2 Hours (Cycle)'] + timesheet_df['OT Post 2 Hours (Daily)']
+)
 
 
-# Add the Daily and Weekly OT first 2 hours and post 2 hours as there is no overlap
-
-timesheet_df['OT First 2 Hours'] = timesheet_df['OT First 2 Hours (Weekly)'] + timesheet_df['OT First 2 Hours (Daily)']
-timesheet_df['OT Post 2 Hours'] = timesheet_df['OT Post 2 Hours (Weekly)'] + timesheet_df['OT Post 2 Hours (Daily)']
 
 
 
@@ -1696,10 +1728,6 @@ columns_to_drop = [
 #'TS_TimeOnly_Start',
 #'TS_TimeOnly_End',
 'DOTW',
-'Week 1 Ending',
-'Week 2 Starting',
-'Week 1 Pay Date',
-'Week 2 Pay Date',
 'Start_dt',
 'End_dt',
 #'Next_Start_dt',
@@ -2564,6 +2592,13 @@ entitlements_data.to_excel('Entitlements_Discrepancy_Check.xlsx', sheet_name='En
 
 entitlements_data_negative = entitlements_data.copy()
 
+
+timesheet_df_weekly_for_Leave.rename(
+    columns={'Weekly_Overtime_Hours (Incl Leave)': 'Roster_Overtime_Hours (Incl Leave)'},
+    inplace=True
+)
+
+
 entitlements_data_negative['Breaks between work periods - Amount (Award)'] = -1 * entitlements_data_negative['Breaks between work periods - Amount (Award)']
 entitlements_data_negative['Minimum_Hours_Topup_Amount'] = -1 *  entitlements_data_negative['Minimum_Hours_Topup_Amount']
 entitlements_data_negative['Broken_Shift_Topup_Amount'] = -1 * entitlements_data_negative['Broken_Shift_Topup_Amount']
@@ -2576,15 +2611,15 @@ entitlements_data_negative = entitlements_data_negative[
     (entitlements_data_negative['Minimum_Hours_Topup_Amount'] < 0) |
     (entitlements_data_negative['Broken_Shift_Topup_Amount'] < 0) |
     (entitlements_data_negative['Breaks between work periods - Amount (Award)'] < 0) |
-    (entitlements_data['Overtime Hours Discrepancy'] < 0) |
-    (entitlements_data['Night Amount Discrepancy'] < 0) |
-    (entitlements_data['Saturday Amount Discrepancy'] < 0) |
-    (entitlements_data['Sunday Amount Discrepancy'] < 0) |
-    (entitlements_data['Public Holiday Amount Discrepancy'] < 0) |
-    (entitlements_data['Leave Loading Amount Discrepancy'] < 0) |
-    (entitlements_data['Discrepancy_First_Aid_Allowance'] < 0) |
-    (entitlements_data['Discrepancy_Broken_Shift_Allowance'] < 0) |
-    (entitlements_data['Discrepancy_Meal_Allowance'] < 0) 
+    (entitlements_data_negative['Overtime Hours Discrepancy'] < 0) |
+    (entitlements_data_negative['Night Amount Discrepancy'] < 0) |
+    (entitlements_data_negative['Saturday Amount Discrepancy'] < 0) |
+    (entitlements_data_negative['Sunday Amount Discrepancy'] < 0) |
+    (entitlements_data_negative['Public Holiday Amount Discrepancy'] < 0) |
+    (entitlements_data_negative['Leave Loading Amount Discrepancy'] < 0) |
+    (entitlements_data_negative['Discrepancy_First_Aid_Allowance'] < 0) |
+    (entitlements_data_negative['Discrepancy_Broken_Shift_Allowance'] < 0) |
+    (entitlements_data_negative['Discrepancy_Meal_Allowance'] < 0) 
 ]
 
 print(entitlements_data_negative.dtypes)
